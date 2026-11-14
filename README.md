@@ -4,78 +4,57 @@
 
   <h3>Platoo (ปลาทู)</h3>
 
-  A Thai Makruk (หมากรุกไทย) analysis engine, derived from Stockfish.
+  เอนจินวิเคราะห์หมากรุกไทย พัฒนาต่อยอดจาก Stockfish
 
-  **English** | [ภาษาไทย](README.th.md)
+  [English](README.en.md) | **ภาษาไทย**
 
 </div>
 
-## Overview
+## ภาพรวม
 
-Platoo is a UCI engine for **Makruk** under the **Thai association rules 2569**
-(กติกาการแข่งขันหมากรุกไทย พ.ศ. ๒๕๖๙), including the counting rules (นับศักดิ์กระดาน,
-นับศักดิ์หมาก) and the repetition draw. It is a hard fork of
-[Stockfish 19][stockfish-link], changed only where Makruk needs it.
+Platoo คือเอนจินหมากรุกไทยที่ใช้โปรโตคอล UCI ยึดตาม**กติกาการแข่งขันหมากรุกไทย พ.ศ. ๒๕๖๙**
+อย่างเคร่งครัด ทั้งการนับศักดิ์กระดาน นับศักดิ์หมาก และการเสมอจากการเดินซ้ำ ตัวเอนจิน hard fork
+มาจาก [Stockfish 19][stockfish-link] โดยตรง และปรับแก้เฉพาะส่วนที่จำเป็นสำหรับหมากรุกไทยเท่านั้น
 
-- **Rules:** [`makruk/docs/MAKRUK_RULES.md`](makruk/docs/MAKRUK_RULES.md). Move generation
-  is checked against Fairy-Stockfish (perft); counting and draws follow the Thai rules where
-  they differ from Fairy-Stockfish.
-- **Evaluation:** the default build uses the **classical (hand-written) Makruk evaluation**.
-  Platoo can also load a Makruk NNUE (see [Neural network](#neural-network)); no network
-  weights are included in this repository, and none are needed.
-- **Search:** Stockfish's search, with Makruk move generation, counting-aware draw
-  detection and Makruk-tuned time management.
+- **กติกา:** ดูรายละเอียดได้ที่ [`makruk/docs/MAKRUK_RULES.md`](makruk/docs/MAKRUK_RULES.md)
+  (ภาษาอังกฤษ) ระบบสร้างตาเดินผ่านการตรวจสอบเทียบกับ Fairy-Stockfish (`perft`) ส่วนการนับศักดิ์และ
+  การตัดสินเสมอจะยึดตามกติกาของไทยเป็นหลักในจุดที่ต่างออกไป
+- **การประเมินตำแหน่ง:** ค่าเริ่มต้นใช้ระบบประเมินผลแบบดั้งเดิม (classical evaluation) ที่เขียนกฎขึ้น
+  สำหรับหมากรุกไทยโดยเฉพาะ นอกจากนี้ยังรองรับการโหลดไฟล์โครงข่ายประสาทเทียม (NNUE) ของ
+  หมากรุกไทยได้ (ดูหัวข้อ [โครงข่ายประสาทเทียม](#nnue)) ทั้งนี้ โค้ดชุดนี้ไม่ได้แนบไฟล์น้ำหนักของ
+  โครงข่ายมาให้ และไม่จำเป็นต้องมีก็ใช้งานได้ทันที
+- **การค้นหาตาเดิน:** ใช้ระบบค้นหาตาเดินของ Stockfish ร่วมกับระบบสร้างตาเดินหมากรุกไทย
+  การตรวจจับการเสมอที่คำนึงถึงการนับศักดิ์ และการบริหารเวลาที่จูนมาให้เหมาะกับจังหวะเกมหมากรุกไทย
 
-## What is different
+## จุดต่างสำคัญที่ทำให้ Platoo เหนือกว่าเอนจินรุ่นก่อน
 
-Fairy-Stockfish plays dozens of variants from one code base and is our reference for Makruk move
-generation. Platoo has a narrower goal: Makruk only, as close to current Stockfish as possible.
+### 1. เปลี่ยนจาก "Multi-Variant Abstraction" เป็น "Native Stockfish 19"
 
-1. **Stockfish 19, Makruk only.** Platoo is a hard fork of Stockfish 19, not of
-   Fairy-Stockfish. Only what Makruk needs was changed (board, move generation, counting,
-   evaluation), and chess-only code (castling, en passant, Syzygy) was removed. Search, time
-   management and NNUE inference are Stockfish 19's, with Makruk-tuned parameters and a
-   sudden-death time model for long Makruk endgames. No per-variant rule checks run in the
-   search.
+- **เอนจินเดิม (Fairy-Stockfish):** ต้องแบกโค้ดสำหรับหมากรุกจีน (Xiangqi), โชงิ (Shogi), จังกี (Janggi) และหมากรุกแฟนตาซีอีกมากมาย ทำให้ไม่สามารถอัปเกรดตาม Stockfish เวอร์ชันล่าสุดได้ทัน และมี Overhead ในการเช็กเงื่อนไขของแต่ละ Variant ตลอดเวลา
+- **Platoo:** ตัด Variant อื่นทิ้งทั้งหมด แล้วนำสถาปัตยกรรมของ Stockfish 19 มาผ่าตัดเฉพาะส่วนที่เป็นหมากรุกไทย ทำให้ได้ความเร็วในการค้นหา (Search), ระบบจัดการเวลา (Time Management) และโครงสร้าง NNUE ระดับแนวหน้าของปี 2026 มาใช้แบบเต็มประสิทธิภาพ
 
-2. **Counting inside the search.** The 2569 counting rules (นับศักดิ์กระดาน, นับศักดิ์หมาก) are
-   part of the position, not only a game-end check. Stockfish's 50-move rule does not exist;
-   `rule50` is only the repetition window. The search uses the **counting horizon** *h*, the
-   plies left before the counting draw:
-   - a mate that cannot be delivered within *h* is not scored as a win (for example, a mate in
-     25 moves with 18 moves of count left is a draw), also for scores read from the
-     transposition table;
-   - close to the counting draw the transposition table gives no cutoffs;
-   - in the last 86 plies of a count *h* is part of the transposition-table key (in 8-ply
-     buckets), so positions with very different counts left do not share entries.
+### 2. ยกเครื่องระบบ "นับศักดิ์" เข้าไปใน Search Horizon โดยตรง
 
-3. **Makruk threat features (MKNNv1).** With `nnue=yes`, Stockfish 19's `FullThreats` input
-   features are redefined for Makruk geometry. A pair "A attacks B" is left out only when B
-   always attacks A back, so the Makruk table differs from chess: Khon → Met and Rua → Met are
-   kept (a Met never attacks straight back), Met → Khon is left out (the Khon always attacks
-   the Met back diagonally), and two Khon of the same colour are not treated as attacking each
-   other back (a Khon steps forward but not backward). The Bia-pair features (`PP_3Wide`,
-   adjacent files) are kept for Bia chains, rams and doubled or isolated Bia. No net is
-   included; see [Neural network](#neural-network).
+- ในเอนจินรุ่นเก่า การนับศักดิ์มักถูกมองเป็นเพียง "ตัวตัดสินผลแพ้ชนะตอนจบเกม" ทำให้ระหว่างที่เอนจินคิดล่วงหน้า (Search Tree) มักเกิดปัญหา Horizon Effect เช่น เอนจินคำนวณเจอทางรุกจนใน 25 ตา แต่ลืมไปว่าเหลือโควตานับศักดิ์อีกแค่ 18 ตาก็จะเสมอแล้ว
+- Platoo ถอดตัวแปร `rule50` (กฎเสมอ 50 ตาของหมากรุกสากล) ออกทั้งหมด แล้วแทนที่ด้วย Counting Horizon ($h$) ซึ่งเป็นจำนวนตาที่เหลือจริงก่อนครบกำหนดนับศักดิ์ พร้อมฝังค่า $h$ ลงใน Transposition Table (TT) Key ทำให้เอนจินไม่นำคะแนนของตำแหน่งที่ "เหลือเวลาไล่เยอะ" มาปนกับตำแหน่งที่ "ใกล้หมดเวลานับศักดิ์"
 
-4. **Strict output, lenient input.** Platoo always writes a promotion with the `m` suffix
-   (`e5e6m`), as Fairy-Stockfish and cutechess require. It accepts `e5e6m`, `e5e6M` and `e5e6`,
-   because a Bia can only promote to a Met.
+### 3. โครงข่ายประสาทเทียม `MKNNv1` ที่เข้าใจวิถีหมากไทยจริงๆ
 
-5. **GUI-friendly results.** The `d` command prints the counting state and the game result
-   (`Counting:` and `Result:` lines). `go` on a finished position answers at once: a mated or
-   stalemated side gets `bestmove (none)`, and a rule draw with legal moves reports
-   `info string result 1/2-1/2 counting` (or `repetition`, `bare-khuns`) before a normal search. Repetition is
-   3-fold on the board alone (the side to move is ignored), and Khun vs Khun is the only
-   material draw.
+- เอนจินรุ่นก่อนใช้ฟีเจอร์โครงข่ายแบบกลางๆ ที่ไม่ได้แยกแยะความต่างเชิงเรขาคณิตของการคุกคามในหมากรุกไทย
+- Platoo ดัดแปลงฟีเจอร์ `FullThreats` ของ Stockfish 19 ให้ตรงกับธรรมชาติของหมากไทย เช่น:
+  - **การคุกคามแบบทางเดียว (Asymmetric Threats):** ในหมากรุกไทย โคน และ เรือ สามารถกิน เม็ด ในแนวตรงได้โดยที่เม็ดไม่สามารถกินสวนกลับในแนวตรงได้ Platoo จึงเก็บฟีเจอร์ `Khon -> Met` และ `Rua -> Met` ไว้ในโครงข่าย (ต่างจากหมากรุกสากลที่ควีนกินบิชอป/เรือสวนได้เสมอจึงตัดฟีเจอร์ซ้ำซ้อนออก)
+  - **คู่โคนฝ่ายเดียวกัน:** เนื่องจากโคนเดินถอยหลังตรงไม่ได้ การผูกหรือขวางทางกันของโคนจึงไม่สมมาตร Platoo จึงปรับเงื่อนไข Semi-exclusion เพื่อไม่ให้ตัดข้อมูลสำคัญของคู่โคนทิ้ง
+  - **โครงสร้างเบี้ย (`PP_3Wide`):** ใช้ฟีเจอร์คู่เบี้ยในรัศมี 3 แถวตั้งเพื่อจับรูปแบบการตั้งป้อมเบี้ย เบี้ยคู่ และเบี้ยซ้อน ซึ่งเป็นหัวใจสำคัญของหมากรุกไทย
 
-Move generation is checked against Fairy-Stockfish with perft, and the rules with 196 test
-cases in `makruk/tests/rules`.
+### 4. การรับ-ส่งคำสั่ง UCI ที่ยืดหยุ่นขึ้น
 
-## Using Platoo
+- ใน Fairy-Stockfish และ cutechess หากส่งตาเลื่อนขั้นเบี้ย (หงายเบี้ย) เป็น `e5e6` โดยไม่เติมตัว `m` ต่อท้าย (`e5e6m`) เอนจินจะปฏิเสธและแจ้งว่าผิดกติกา (Illegal move) ทันที
+- Platoo ใช้หลักการ Strict Output, Lenient Input คือเวลาเอนจินตอบกลับจะพิมพ์ `e5e6m` ตามมาตรฐานเสมอเพื่อไม่ให้ GUI รุ่นเก่าเอ๋อ แต่เวลาผู้ใช้งานหรือโปรแกรมภายนอกส่งตาเดินเข้ามา Platoo สามารถรับได้ทั้ง `e5e6m` และ `e5e6` (เพราะในหมากรุกไทย เบี้ยหงายได้เพียงอย่างเดียวคือเป็นเบี้ยหงาย/เม็ด ไม่มีการเลือกตัวหมากเหมือนหมากรุกสากล)
 
-Platoo speaks UCI, like Stockfish. Use it from any GUI or tool that supports Makruk, for
-example cutechess with `-variant makruk`:
+## การใช้งาน
+
+Platoo สื่อสารผ่านโปรโตคอล UCI เหมือน Stockfish สามารถใช้กับโปรแกรมกระดาน (GUI) หรือเครื่องมือใดก็ได้
+ที่รองรับหมากรุกไทย เช่น cutechess โดยใส่พารามิเตอร์ `-variant makruk`:
 
 ```
 uci
@@ -84,33 +63,38 @@ position startpos moves e3e4
 go movetime 1000
 ```
 
-Useful options: `Threads`, `Hash`, `MultiPV`, `Move Overhead`, `UCI_ShowWDL`.
+ตัวเลือก (options) ที่แนะนำให้ปรับ: `Threads`, `Hash`, `MultiPV`, `Move Overhead`, `UCI_ShowWDL`
 
-## Compiling
+## การคอมไพล์ (build)
 
-You need `make` and a C++17 compiler (GCC or Clang). On Windows use
-[MSYS2](https://www.msys2.org/) (MinGW64 shell). From `src/`:
+ต้องติดตั้ง `make` และคอมไพเลอร์ C++17 (GCC หรือ Clang) ถ้าใช้ Windows ให้รันผ่าน
+[MSYS2](https://www.msys2.org/) (หน้าต่าง MinGW64) จากนั้นเข้าไปที่โฟลเดอร์ `src/` แล้วสั่ง:
 
 ```
-make -j profile-build    # fastest binary (profile-guided)
-make -j build            # plain build, if profile-build fails
+make -j profile-build    # ไฟล์ไบนารีที่เร็วที่สุด (profile-guided)
+make -j build            # build แบบปกติ (ใช้เมื่อ profile-build ไม่ผ่าน)
 ```
 
-Check the build with `./platoo bench` (`platoo.exe bench` on Windows): it should print `Nodes searched: 1949398`.
+ทดสอบด้วยคำสั่ง `./platoo bench` (บน Windows ใช้ `platoo.exe bench`) ถ้าขึ้น
+`Nodes searched: 1949398` แสดงว่าพร้อมใช้งาน
 
-## Neural network
+<a id="nnue"></a>
 
-With `nnue=yes` Platoo evaluates with a Makruk NNUE, **MKNNv1**: Stockfish 19's SFNNv16
-layout with Makruk threat features and a 512-wide first layer. No net is shipped; you need
-your own `platoo-<sha12>.nnue` file (`setoption name EvalFile value <path>`). Architecture,
-feature indices, file format and how to train a compatible net:
-[`makruk/docs/NNUE_ARCHITECTURE.md`](makruk/docs/NNUE_ARCHITECTURE.md).
+## โครงข่ายประสาทเทียม (NNUE)
+
+ถ้าคอมไพล์ด้วย `nnue=yes` เอนจินจะประเมินกระดานด้วยโมเดลหมากรุกไทยชื่อ **MKNNv1** ซึ่งนำโครงสร้าง
+SFNNv16 ของ Stockfish 19 มาปรับฟีเจอร์การคุกคามให้เข้ากับหมากไทย และใช้เลเยอร์แรกขนาด 512
+
+เอนจินไม่ได้แถมไฟล์โมเดลมาให้ ต้องเตรียมไฟล์ `platoo-<sha12>.nnue` ของตัวเอง แล้วโหลดด้วยคำสั่ง
+`setoption name EvalFile value <path>` (ไฟล์ NNUE ของ Fairy-Stockfish และของหมากรุกสากลใช้ไม่ได้)
+ดูโครงสร้าง ดัชนีฟีเจอร์ รูปแบบไฟล์ และวิธีเทรนโมเดลได้ที่
+[`makruk/docs/NNUE_ARCHITECTURE.md`](makruk/docs/NNUE_ARCHITECTURE.md) (ภาษาอังกฤษ)
 
 ```mermaid
 flowchart LR
-    P["Position<br/>(both sides)"] --> HK["HalfKAv2_hm<br/>22,528"]
-    P --> TH["Makruk threats<br/>33,488"]
-    P --> PP["Bia pairs<br/>4,560"]
+    P["ตำแหน่งบนกระดาน<br/>(มุมมองทั้งสองฝ่าย)"] --> HK["HalfKAv2_hm<br/>22,528"]
+    P --> TH["การคุกคามแบบหมากไทย<br/>33,488"]
+    P --> PP["คู่เบี้ย<br/>4,560"]
     HK --> FT["Feature transformer<br/>2 x 512"]
     TH --> FT
     PP --> FT
@@ -122,31 +106,30 @@ flowchart LR
     F0 --> F1["fc_1<br/>64 -> 32"]
     F1 --> F2["fc_2<br/>128 -> 1"]
     F0 -.->|skip| F2
-    F2 --> E["Eval"]
+    F2 --> E["ค่าประเมิน"]
     PS --> E
 ```
 
-The hidden layers (`fc_0` to `fc_2`) come in 8 stacks, chosen by the number of pieces on the
-board.
+เลเยอร์ซ่อน (`fc_0` ถึง `fc_2`) แบ่งเป็น 8 ชุด ระบบจะเลือกใช้ตามจำนวนตัวหมากที่เหลืออยู่บนกระดาน
 
-## Tests
+## การทดสอบ
 
-`makruk/tests/` holds perft positions, opening suites and rule tests
-(`makruk/tools/perft_diff.py`, `makruk/tools/rule_tests.py`). The perft comparison needs a
-Fairy-Stockfish binary; point `MAKRUK_EXTERNAL` at the folder that holds it.
+โฟลเดอร์ `makruk/tests/` เก็บชุดตำแหน่งทดสอบ `perft`, ชุดเปิดหมาก และชุดทดสอบกติกา
+(`makruk/tools/perft_diff.py`, `makruk/tools/rule_tests.py`) การเทียบค่า `perft` ต้องมีไฟล์ไบนารีของ
+Fairy-Stockfish โดยตั้งตัวแปร `MAKRUK_EXTERNAL` ให้ชี้ไปยังโฟลเดอร์ที่เก็บไฟล์นั้น
 
-## Terms of use
+## เงื่อนไขการใช้งาน
 
-Platoo is free software, distributed under the
-[**GNU General Public License version 3**](Copying.txt) (GPL v3), like Stockfish. You may
-use, study, modify and redistribute it; if you distribute binaries, you must also make the
-full source code (including your changes) available under the GPL v3.
+Platoo เป็นซอฟต์แวร์เสรี เผยแพร่ภายใต้สัญญาอนุญาต
+[**GNU General Public License version 3**](Copying.txt) (GPL v3) เช่นเดียวกับ Stockfish คุณสามารถ
+นำไปใช้งาน ศึกษา แก้ไข และแจกจ่ายต่อได้ แต่ถ้าแจกจ่ายไฟล์โปรแกรม (binaries) ออกไป ต้องเปิดเผย
+ซอร์สโค้ดฉบับเต็มรวมถึงส่วนที่แก้ไขภายใต้สัญญาอนุญาต GPL v3 ด้วย
 
-## Acknowledgements
+## กิตติกรรมประกาศ
 
-- **Stockfish** and the Stockfish developers ([AUTHORS](AUTHORS)): Platoo's search and most
-  of its code are theirs. Visit [stockfishchess.org][stockfish-link].
-- **Fairy-Stockfish** by Fabian Fichter and contributors (GPL v3): our reference for Makruk
-  move generation.
+- **Stockfish** และทีมผู้พัฒนา ([AUTHORS](AUTHORS)): ระบบค้นหาตาเดินและโค้ดส่วนใหญ่ของ Platoo
+  มาจากผลงานของทีมนี้ ดูเพิ่มเติมได้ที่ [stockfishchess.org][stockfish-link]
+- **Fairy-Stockfish** โดย Fabian Fichter และผู้ร่วมพัฒนา (GPL v3): ต้นแบบอ้างอิงสำหรับระบบสร้าง
+  ตาเดินหมากรุกไทย
 
 [stockfish-link]: https://stockfishchess.org
