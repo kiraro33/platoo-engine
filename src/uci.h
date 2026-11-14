@@ -35,7 +35,7 @@ class Score;
 enum Square : u8;
 using Value = int;
 
-constexpr auto StartFEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+constexpr auto StartFEN = "rnsmksnr/8/pppppppp/8/8/PPPPPPPP/8/RNSKMSNR w - - 0 1";
 
 class UCIEngine {
    public:
@@ -46,7 +46,7 @@ class UCIEngine {
     static int         to_cp(Value v, const Position& pos);
     static std::string format_score(const Score& s);
     static std::string square(Square s);
-    static std::string move(Move m, bool chess960 = false);
+    static std::string move(Move m);
     static std::string wdl(Value v, const Position& pos);
     static std::string to_lower(std::string str);
     static Move        to_move(const Position& pos, std::string str);

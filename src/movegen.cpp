@@ -52,7 +52,7 @@ inline Move* splat_pawn_moves(Move* moveList, Bitboard to_bb) {
 }
 
 inline Move* splat_moves(Move* moveList, Square from, Bitboard to_bb) {
-    assert(popcount(to_bb) <= 32);  // Q can attack up to 27 squares
+    assert(popcount(to_bb) <= 32);  // Rua can attack up to 14 squares
 
     const __m512i fromVec = _mm512_set1_epi16(Move(from, SQUARE_ZERO).raw());
     const __m512i toSquares =
@@ -83,21 +83,13 @@ inline Move* splat_moves(Move* moveList, Square from, Bitboard to_bb) {
 
 #endif
 
-template<GenType Type, Direction D, bool Enemy>
+// Promotion is mandatory and always to Met (R2.7). Like queen promotions in
+// chess, all promotions are generated in the capture stage.
+template<GenType Type, Direction D>
 Move* make_promotions(Move* moveList, [[maybe_unused]] Square to) {
 
-    constexpr bool          all  = Type == EVASIONS || Type == NON_EVASIONS;
-    [[maybe_unused]] Square from = to - D;
-
-    if constexpr (Type == CAPTURES || all)
-        *moveList++ = Move::make<PROMOTION>(from, to, QUEEN);
-
-    if constexpr ((Type == CAPTURES && Enemy) || (Type == QUIETS && !Enemy) || all)
-    {
-        *moveList++ = Move::make<PROMOTION>(from, to, ROOK);
-        *moveList++ = Move::make<PROMOTION>(from, to, BISHOP);
-        *moveList++ = Move::make<PROMOTION>(from, to, KNIGHT);
-    }
+    if constexpr (Type != QUIETS)
+        *moveList++ = Move::make<PROMOTION>(to - D, to, QUEEN);
 
     return moveList;
 }
@@ -107,8 +99,7 @@ template<Color Us, GenType Type>
 Move* generate_pawn_moves(const Position& pos, Move* moveList, Bitboard target) {
 
     constexpr Color     Them     = ~Us;
-    constexpr Bitboard  TRank7BB = (Us == WHITE ? Rank7BB : Rank2BB);
-    constexpr Bitboard  TRank3BB = (Us == WHITE ? Rank3BB : Rank6BB);
+    constexpr Bitboard  TRank5BB = (Us == WHITE ? Rank5BB : Rank4BB);
     constexpr Direction Up       = pawn_push(Us);
     constexpr Direction UpRight  = (Us == WHITE ? NORTH_EAST : SOUTH_WEST);
     constexpr Direction UpLeft   = (Us == WHITE ? NORTH_WEST : SOUTH_EAST);
@@ -116,69 +107,48 @@ Move* generate_pawn_moves(const Position& pos, Move* moveList, Bitboard target) 
     const Bitboard emptySquares = ~pos.pieces();
     const Bitboard enemies      = Type == EVASIONS ? pos.checkers() : pos.pieces(Them);
 
-    Bitboard pawnsOn7    = pos.pieces(Us, PAWN) & TRank7BB;
-    Bitboard pawnsNotOn7 = pos.pieces(Us, PAWN) & ~TRank7BB;
+    Bitboard pawnsOn5    = pos.pieces(Us, PAWN) & TRank5BB;
+    Bitboard pawnsNotOn5 = pos.pieces(Us, PAWN) & ~TRank5BB;
 
-    // Single and double pawn pushes, no promotions
+    // Single pawn pushes, no promotions (no double push, R2.6)
     if constexpr (Type != CAPTURES)
     {
-        Bitboard b1 = shift(pawnsNotOn7, Up) & emptySquares;
-        Bitboard b2 = shift(b1 & TRank3BB, Up) & emptySquares;
+        Bitboard b1 = shift(pawnsNotOn5, Up) & emptySquares;
 
         if constexpr (Type == EVASIONS)  // Consider only blocking squares
-        {
             b1 &= target;
-            b2 &= target;
-        }
 
         moveList = splat_pawn_moves<Up>(moveList, b1);
-        moveList = splat_pawn_moves<Up + Up>(moveList, b2);
     }
 
-    // Promotions and underpromotions
-    if (pawnsOn7)
+    // Promotions on the relative 6th rank, by a push or a capture (R2.7)
+    if (pawnsOn5)
     {
-        Bitboard b1 = shift(pawnsOn7, UpRight) & enemies;
-        Bitboard b2 = shift(pawnsOn7, UpLeft) & enemies;
-        Bitboard b3 = shift(pawnsOn7, Up) & emptySquares;
+        Bitboard b1 = shift(pawnsOn5, UpRight) & enemies;
+        Bitboard b2 = shift(pawnsOn5, UpLeft) & enemies;
+        Bitboard b3 = shift(pawnsOn5, Up) & emptySquares;
 
         if constexpr (Type == EVASIONS)
             b3 &= target;
 
         while (b1)
-            moveList = make_promotions<Type, UpRight, true>(moveList, pop_lsb(b1));
+            moveList = make_promotions<Type, UpRight>(moveList, pop_lsb(b1));
 
         while (b2)
-            moveList = make_promotions<Type, UpLeft, true>(moveList, pop_lsb(b2));
+            moveList = make_promotions<Type, UpLeft>(moveList, pop_lsb(b2));
 
         while (b3)
-            moveList = make_promotions<Type, Up, false>(moveList, pop_lsb(b3));
+            moveList = make_promotions<Type, Up>(moveList, pop_lsb(b3));
     }
 
-    // Standard and en passant captures
+    // Standard captures (no en passant, R2.6)
     if constexpr (Type == CAPTURES || Type == EVASIONS || Type == NON_EVASIONS)
     {
-        Bitboard b1 = shift(pawnsNotOn7, UpRight) & enemies;
-        Bitboard b2 = shift(pawnsNotOn7, UpLeft) & enemies;
+        Bitboard b1 = shift(pawnsNotOn5, UpRight) & enemies;
+        Bitboard b2 = shift(pawnsNotOn5, UpLeft) & enemies;
 
         moveList = splat_pawn_moves<UpRight>(moveList, b1);
         moveList = splat_pawn_moves<UpLeft>(moveList, b2);
-
-        if (pos.ep_square() != SQ_NONE)
-        {
-            assert(rank_of(pos.ep_square()) == relative_rank(Us, RANK_6));
-
-            // An en passant capture cannot resolve a discovered check
-            if (Type == EVASIONS && (target & (pos.ep_square() + Up)))
-                return moveList;
-
-            b1 = pawnsNotOn7 & Attacks::attacks_bb<PAWN>(pos.ep_square(), Them);
-
-            assert(b1);
-
-            while (b1)
-                *moveList++ = Move::make<EN_PASSANT>(pop_lsb(b1), pos.ep_square());
-        }
     }
 
     return moveList;
@@ -195,7 +165,7 @@ Move* generate_moves(const Position& pos, Move* moveList, Bitboard target) {
     while (bb)
     {
         Square   from = pop_lsb(bb);
-        Bitboard b    = Attacks::attacks_bb<Pt>(from, pos.pieces()) & target;
+        Bitboard b    = Attacks::attacks_bb(make_piece(Us, Pt), from, pos.pieces()) & target;
 
         moveList = splat_moves(moveList, from, b);
     }
@@ -231,19 +201,14 @@ Move* generate_all(const Position& pos, Move* moveList) {
 
     moveList = splat_moves(moveList, ksq, b);
 
-    if ((Type == QUIETS || Type == NON_EVASIONS) && pos.can_castle(Us & ANY_CASTLING))
-        for (CastlingRights cr : {Us & KING_SIDE, Us & QUEEN_SIDE})
-            if (!pos.castling_impeded(cr) && pos.can_castle(cr))
-                *moveList++ = Move::make<CASTLING>(ksq, pos.castling_rook_square(cr));
-
     return moveList;
 }
 
 }  // namespace
 
 
-// <CAPTURES>     Generates all pseudo-legal captures plus queen promotions
-// <QUIETS>       Generates all pseudo-legal non-captures and underpromotions
+// <CAPTURES>     Generates all pseudo-legal captures plus promotions
+// <QUIETS>       Generates all pseudo-legal non-captures except promotions
 // <EVASIONS>     Generates all pseudo-legal check evasions
 // <NON_EVASIONS> Generates all pseudo-legal captures and non-captures
 //
@@ -279,8 +244,7 @@ Move* generate<LEGAL>(const Position& pos, Move* moveList) {
     moveList =
       pos.checkers() ? generate<EVASIONS>(pos, moveList) : generate<NON_EVASIONS>(pos, moveList);
     while (cur != moveList)
-        if (((pinned & cur->from_sq()) || cur->from_sq() == ksq || cur->type_of() == EN_PASSANT)
-            && !pos.legal(*cur))
+        if (((pinned & cur->from_sq()) || cur->from_sq() == ksq) && !pos.legal(*cur))
             *cur = *(--moveList);
         else
             ++cur;

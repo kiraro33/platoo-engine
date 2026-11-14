@@ -45,7 +45,7 @@ constexpr std::array<Piece, 12> AllPieces = {
 
 template<PieceType PT>
 constexpr auto make_piece_indices_type() {
-    static_assert(PT != PieceType::PAWN);
+    static_assert(PT != PieceType::PAWN && PT != PieceType::BISHOP);
 
     std::array<std::array<u8, SQUARE_NB>, SQUARE_NB> out{};
 
@@ -62,9 +62,10 @@ constexpr auto make_piece_indices_type() {
     return out;
 }
 
+// Bia and Khon attacks depend on the colour
 template<Piece P>
 constexpr auto make_piece_indices_piece() {
-    static_assert(type_of(P) == PieceType::PAWN);
+    static_assert(type_of(P) == PieceType::PAWN || type_of(P) == PieceType::BISHOP);
 
     std::array<std::array<u8, SQUARE_NB>, SQUARE_NB> out{};
 
@@ -72,7 +73,8 @@ constexpr auto make_piece_indices_piece() {
 
     for (Square from = SQ_A1; from <= SQ_H8; ++from)
     {
-        Bitboard attacks = Attacks::PseudoAttacks[C][from];
+        Bitboard attacks = type_of(P) == PieceType::PAWN ? Attacks::PseudoAttacks[C][from]
+                                                         : Attacks::KhonAttacks[C][from];
 
         for (Square to = SQ_A1; to <= SQ_H8; ++to)
         {
@@ -85,7 +87,6 @@ constexpr auto make_piece_indices_piece() {
 
 constexpr auto index_lut2_array() {
     constexpr auto KNIGHT_ATTACKS = make_piece_indices_type<PieceType::KNIGHT>();
-    constexpr auto BISHOP_ATTACKS = make_piece_indices_type<PieceType::BISHOP>();
     constexpr auto ROOK_ATTACKS   = make_piece_indices_type<PieceType::ROOK>();
     constexpr auto QUEEN_ATTACKS  = make_piece_indices_type<PieceType::QUEEN>();
     constexpr auto KING_ATTACKS   = make_piece_indices_type<PieceType::KING>();
@@ -98,8 +99,8 @@ constexpr auto index_lut2_array() {
     indices[W_KNIGHT] = KNIGHT_ATTACKS;
     indices[B_KNIGHT] = KNIGHT_ATTACKS;
 
-    indices[W_BISHOP] = BISHOP_ATTACKS;
-    indices[B_BISHOP] = BISHOP_ATTACKS;
+    indices[W_BISHOP] = make_piece_indices_piece<W_BISHOP>();
+    indices[B_BISHOP] = make_piece_indices_piece<B_BISHOP>();
 
     indices[W_ROOK] = ROOK_ATTACKS;
     indices[B_ROOK] = ROOK_ATTACKS;
@@ -127,7 +128,13 @@ constexpr auto init_threat_offsets() {
         {
             offsets[pieceIdx][from] = cumulativePieceOffset;
 
-            if (type_of(piece) != PAWN)
+            if (type_of(piece) == BISHOP)
+            {
+                Bitboard attacks = Attacks::KhonAttacks[color_of(piece)][from];
+                cumulativePieceOffset += constexpr_popcount(attacks);
+            }
+
+            else if (type_of(piece) != PAWN)
             {
                 Bitboard attacks = Attacks::PseudoAttacks[type_of(piece)][from];
                 cumulativePieceOffset += constexpr_popcount(attacks);
@@ -150,6 +157,10 @@ constexpr auto init_threat_offsets() {
 }
 
 constexpr auto helper_offsets = init_threat_offsets().first;
+static_assert(helper_offsets[B_QUEEN].cumulativeOffset
+                  + numValidTargets[B_QUEEN] * helper_offsets[B_QUEEN].cumulativePieceOffset
+                == int(FullThreats::Dimensions),
+              "FullThreats::Dimensions does not match the Makruk threat layout");
 // Lookup array for indexing threats
 constexpr auto offsets = init_threat_offsets().second;
 
@@ -164,9 +175,11 @@ constexpr auto init_index_luts() {
             PieceType attackerType = type_of(attacker);
             PieceType attackedType = type_of(attacked);
 
-            int  map           = FullThreats::map[attackerType - 1][attackedType - 1];
-            bool semi_excluded = attackerType == attackedType && (enemy || attackerType != PAWN);
-            IndexType feature  = helper_offsets[attacker].cumulativeOffset
+            int map = FullThreats::map[attackerType - 1][attackedType - 1];
+            // Friendly Bia and Khon pairs are not mutual (forward attacks), keep both directions
+            bool semi_excluded = attackerType == attackedType
+                              && (enemy || (attackerType != PAWN && attackerType != BISHOP));
+            IndexType feature = helper_offsets[attacker].cumulativeOffset
                               + (color_of(attacked) * (numValidTargets[attacker] / 2) + map)
                                   * helper_offsets[attacker].cumulativePieceOffset;
 
@@ -207,11 +220,11 @@ sf_always_inline IndexType FullThreats::make_index(
 // Get a list of indices for active features in ascending order
 
 void FullThreats::append_active_indices(Color perspective, const Position& pos, IndexList& active) {
-    const Square   ksq                = pos.square<KING>(perspective);
-    const Bitboard occupied           = pos.pieces();
-    const Bitboard pawnTargets        = pos.pieces(KNIGHT, ROOK);
-    const Bitboard minorSliderTargets = pos.pieces(PAWN, KNIGHT, BISHOP, ROOK);
-    const Bitboard queenTargets       = pos.pieces(PAWN, KNIGHT, BISHOP, ROOK, QUEEN);
+    const Square   ksq            = pos.square<KING>(perspective);
+    const Bitboard occupied       = pos.pieces();
+    const Bitboard pawnTargets    = pos.pieces(KNIGHT, ROOK);
+    const Bitboard queenTargets   = pos.pieces(PAWN, KNIGHT, ROOK, QUEEN);
+    const Bitboard nonKingTargets = pos.pieces(PAWN, KNIGHT, BISHOP, ROOK, QUEEN);
 
     auto process_pawn_attacks = [&](Color c, Direction attkDir) {
         const Bitboard cPawns  = pos.pieces(c, PAWN);
@@ -239,11 +252,11 @@ void FullThreats::append_active_indices(Color perspective, const Position& pos, 
         {
             Piece    attacker = make_piece(c, pt);
             Bitboard bb       = pos.pieces(c, pt);
-            Bitboard targets  = pt == KNIGHT || pt == QUEEN ? queenTargets : minorSliderTargets;
+            Bitboard targets  = pt == QUEEN ? queenTargets : nonKingTargets;
             while (bb)
             {
                 Square   from    = pop_lsb(bb);
-                Bitboard attacks = Attacks::attacks_bb(pt, from, occupied) & targets;
+                Bitboard attacks = Attacks::attacks_bb(attacker, from, occupied) & targets;
                 while (attacks)
                 {
                     Square    to       = pop_lsb(attacks);

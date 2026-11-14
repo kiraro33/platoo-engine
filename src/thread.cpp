@@ -36,7 +36,6 @@
 #include "memory.h"
 #include "movegen.h"
 #include "search.h"
-#include "syzygy/tbprobe.h"
 #include "timeman.h"
 #include "types.h"
 #include "uci.h"
@@ -150,7 +149,6 @@ void Thread::idle_loop() {
 Search::SearchManager* ThreadPool::main_manager() { return main_thread()->worker->main_manager(); }
 
 u64 ThreadPool::nodes_searched() const { return accumulate(&Search::Worker::nodes); }
-u64 ThreadPool::tb_hits() const { return accumulate(&Search::Worker::tbHits); }
 
 static usize next_power_of_two(u64 count) { return count > 1 ? (2ULL << msb(count - 1)) : 1; }
 
@@ -294,10 +292,7 @@ usize ThreadPool::num_threads() const { return threads.size(); }
 
 // Wakes up main thread waiting in idle_loop() and returns immediately.
 // Main thread will wake up other threads and start the search.
-void ThreadPool::start_thinking(const OptionsMap&  options,
-                                Position&          pos,
-                                StateListPtr&      states,
-                                Search::LimitsType limits) {
+void ThreadPool::start_thinking(Position& pos, StateListPtr& states, Search::LimitsType limits) {
 
     main_thread()->wait_for_search_finished();
 
@@ -320,8 +315,6 @@ void ThreadPool::start_thinking(const OptionsMap&  options,
         for (const auto& m : MoveList<LEGAL>(pos))
             rootMoves.emplace_back(m);
 
-    Tablebases::Config tbConfig = Tablebases::rank_root_moves(options, pos, rootMoves);
-
     // After ownership transfer 'states' becomes empty, so if we stop the search
     // and call 'go' again without setting a new position states.get() == nullptr.
     assert(states.get() || setupStates.get());
@@ -338,13 +331,12 @@ void ThreadPool::start_thinking(const OptionsMap&  options,
     {
         th->run_custom_job([&]() {
             th->worker->limits = limits;
-            th->worker->nodes = th->worker->tbHits = th->worker->bestMoveChanges = 0;
-            th->worker->nmpMinPly                                                = 0;
-            th->worker->rootDepth                                                = 0;
-            th->worker->rootMoves                                                = rootMoves;
-            th->worker->rootPos.set(pos.fen(), pos.is_chess960(), &th->worker->rootState);
+            th->worker->nodes = th->worker->bestMoveChanges = 0;
+            th->worker->nmpMinPly                           = 0;
+            th->worker->rootDepth                           = 0;
+            th->worker->rootMoves                           = rootMoves;
+            th->worker->rootPos.set(pos.fen(), &th->worker->rootState);
             th->worker->rootState = setupStates->back();
-            th->worker->tbConfig  = tbConfig;
         });
     }
 

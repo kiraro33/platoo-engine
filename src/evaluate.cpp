@@ -27,6 +27,7 @@
 #include <memory>
 #include <sstream>
 
+#include "makruk_eval.h"
 #include "misc.h"
 #include "nnue/network.h"
 #include "nnue/nnue_misc.h"
@@ -47,6 +48,11 @@ Value Eval::evaluate(const Eval::NNUE::Network&     network,
 
     assert(!pos.checkers());
 
+#ifdef MAKRUK_TEMP_EVAL
+    (void) network, (void) accumulators, (void) caches, (void) optimism;
+    return TempEval::evaluate(pos);
+#endif
+
     auto [psqt, positional] = network.evaluate(pos, accumulators, caches);
 
     Value nnue = psqt + positional;
@@ -59,8 +65,8 @@ Value Eval::evaluate(const Eval::NNUE::Network&     network,
     int material = 534 * pos.count<PAWN>() + pos.non_pawn_material();
     int v        = nnue + (nnue * i64(material) + optimism * i64(7675)) / 91000;
 
-    // Damp down the evaluation linearly when shuffling
-    v -= v * pos.rule50_count() / 199;
+    // Damp down the evaluation linearly when approaching the counting draw (R5.9)
+    v -= v * std::max(100 - pos.count_horizon(), 0) / 199;
 
     // Guarantee evaluation does not hit the tablebase range
     v = std::clamp(v, VALUE_TB_LOSS_IN_MAX_PLY + 1, VALUE_TB_WIN_IN_MAX_PLY - 1);
@@ -76,6 +82,11 @@ std::string Eval::trace(Position& pos, const Eval::NNUE::Network& network) {
 
     if (pos.checkers())
         return "Final evaluation: none (in check)";
+
+#ifdef MAKRUK_TEMP_EVAL
+    (void) network;
+    return TempEval::trace(pos);
+#endif
 
     auto accumulators = std::make_unique<Eval::NNUE::AccumulatorStack>();
     auto caches       = std::make_unique<Eval::NNUE::AccumulatorCaches>(network);

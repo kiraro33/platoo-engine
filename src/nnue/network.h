@@ -42,6 +42,7 @@ namespace Stockfish::Eval::NNUE {
 
 class AccumulatorStack;
 struct AccumulatorCaches;
+struct NNUETester;
 
 using NetworkOutput = std::tuple<Value, Value>;
 
@@ -72,7 +73,8 @@ class Network {
 
     void verify(const std::function<void(std::string_view)>& f,
                 const EvalFile&                              evalFile,
-                std::filesystem::path                        evalfilePath) const;
+                std::filesystem::path                        evalfilePath,
+                const std::filesystem::path&                 rootDirectory = {}) const;
 
     NnueEvalTrace trace_evaluate(const Position&    pos,
                                  AccumulatorStack&  accumulatorStack,
@@ -106,6 +108,7 @@ class Network {
       FeatureTransformer::get_hash_value() ^ NetworkArchitecture::get_hash_value();
 
     friend struct AccumulatorCaches;
+    friend struct NNUETester;
 };
 
 

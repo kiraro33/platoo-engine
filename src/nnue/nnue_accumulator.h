@@ -39,6 +39,7 @@ namespace Stockfish::Eval::NNUE {
 struct alignas(CacheLineSize) Accumulator;
 
 class FeatureTransformer;
+struct NNUETester;
 
 // Class that holds the result of affine transformation of input features,
 // combined HalfKA + Threats
@@ -135,6 +136,8 @@ class AccumulatorStack {
 
     std::array<AccumulatorState, MaxSize> accumulators;
     usize                                 size = 1;
+
+    friend struct NNUETester;
 };
 
 }  // namespace Stockfish::Eval::NNUE

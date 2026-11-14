@@ -38,6 +38,41 @@ namespace Stockfish {
 class TranspositionTable;
 struct SharedHistories;
 
+// Makruk counting (MAKRUK_RULES.md R5.2): none, board's honor or pieces' honor
+enum CountType : u8 {
+    COUNT_NONE,
+    COUNT_BOARD,
+    COUNT_PIECES
+};
+
+// Game result of a position (R5.5, R5.11)
+struct GameResult {
+    enum Result : u8 {
+        ONGOING,
+        WHITE_WINS,
+        BLACK_WINS,
+        DRAW
+    };
+    enum Reason : u8 {
+        NONE,
+        CHECKMATE,
+        STALEMATE,
+        BARE_KHUNS,
+        COUNTING,
+        REPETITION
+    };
+
+    Result result;
+    Reason reason;
+};
+
+// When true, the TT key gets a component from the remaining counting horizon
+// With false, only value_from_tt() downgrades mate scores beyond the horizon.
+constexpr bool CountingKey = true;
+
+// Returned by Position::count_horizon() when no count is active
+constexpr int NoCountingHorizon = 1024;
+
 // StateInfo struct stores information needed to restore a Position object to
 // its previous state when we retract a move. Whenever a move is made on the
 // board (by calling Position::do_move), a StateInfo object must be passed.
@@ -45,15 +80,20 @@ struct SharedHistories;
 struct StateInfo {
 
     // Copied when making a move
-    Key    materialKey;
-    Key    pawnKey;
-    Key    minorPieceKey;
-    Key    nonPawnKey[COLOR_NB];
-    Value  nonPawnMaterial[COLOR_NB];
-    int    castlingRights;
-    int    rule50;
-    int    pliesFromNull;
-    Square epSquare;
+    Key   materialKey;
+    Key   pawnKey;
+    Key   minorPieceKey;
+    Key   nonPawnKey[COLOR_NB];
+    Value nonPawnMaterial[COLOR_NB];
+    int   rule50;  // Repetition window only: there is no 50-move rule (R3.6)
+    int   pliesFromNull;
+
+    // Counting state (R5.2)
+    int       countLimit;
+    int       countNext;
+    int       countPly;
+    CountType countType;
+    Color     countSide;
 
     // Not copied when making a move (will be recomputed anyhow)
     Key        key;
@@ -80,7 +120,7 @@ struct PositionSetError: std::runtime_error {
 };
 
 // Position class stores information regarding the board representation as
-// pieces, side to move, hash keys, castling info, etc. Important methods are
+// pieces, side to move, hash keys, etc. Important methods are
 // do_move() and undo_move(), used by the search to update node info when
 // traversing the search tree.
 class Position {
@@ -92,8 +132,7 @@ class Position {
     Position& operator=(const Position&) = delete;
 
     // FEN string input/output
-    std::optional<PositionSetError> set(const std::string& fenStr, bool isChess960, StateInfo* si);
-    std::optional<PositionSetError> set(const std::string& code, Color c, StateInfo* si);
+    std::optional<PositionSetError> set(const std::string& fenStr, StateInfo* si);
     std::string                     fen() const;
 
     // Position representation
@@ -105,7 +144,6 @@ class Position {
     Bitboard                            pieces(Color c, PieceTypes... pts) const;
     Piece                               piece_on(Square s) const;
     const std::array<Piece, SQUARE_NB>& piece_array() const;
-    Square                              ep_square() const;
     bool                                empty(Square s) const;
     template<PieceType Pt>
     int count(Color c) const;
@@ -113,11 +151,6 @@ class Position {
     int count() const;
     template<PieceType Pt>
     Square square(Color c) const;
-
-    // Castling
-    bool   can_castle(CastlingRights cr) const;
-    bool   castling_impeded(CastlingRights cr) const;
-    Square castling_rook_square(CastlingRights cr) const;
 
     // Checking
     Bitboard checkers() const;
@@ -168,15 +201,18 @@ class Position {
     // Other properties of the position
     Color side_to_move() const;
     int   game_ply() const;
-    bool  is_chess960() const;
     bool  is_draw(int ply) const;
     bool  is_repetition(int ply) const;
     bool  upcoming_repetition(int ply) const;
     bool  has_repeated() const;
     int   rule50_count() const;
+    int   count_horizon() const;
+    bool  is_counting_draw() const;
     Value non_pawn_material(Color c) const;
     Value non_pawn_material() const;
-    bool  dtz_is_dtm() const;  // Pawnless && (3-men || 4-men-minors-only)
+
+    // Game result by the Makruk rules (R5.5, R5.11)
+    GameResult game_result() const;
 
     // Position consistency check, for debugging
     bool                            pos_is_ok() const;
@@ -191,7 +227,6 @@ class Position {
 
    private:
     // Initialization helpers (used while setting up a position)
-    void set_castling_right(Color c, Square rfrom);
     Key  compute_material_key() const;
     void set_state() const;
     void set_check_info() const;
@@ -204,16 +239,8 @@ class Position {
                               DirtyThreats* const dts,
                               Bitboard            noRaysContaining = -1ULL) const;
     void move_piece(Square from, Square to, DirtyThreats* const dts = nullptr);
-    template<bool Do>
-    void do_castling(Color               us,
-                     Square              from,
-                     Square&             to,
-                     Square&             rfrom,
-                     Square&             rto,
-                     DirtyThreats* const dts = nullptr,
-                     DirtyPiece* const   dp  = nullptr);
-    template<bool AfterMove = false>
-    Key adjust_key50(Key k) const;
+    Key  adjust_key_count(Key k, int plies = 0) const;
+    void update_count(Color us);
 
     // Data members
     std::array<Piece, SQUARE_NB>        board;
@@ -221,13 +248,9 @@ class Position {
     std::array<Bitboard, COLOR_NB>      byColorBB;
 
     int        pieceCount[PIECE_NB];
-    int        castlingRightsMask[SQUARE_NB];
-    Square     castlingRookSquare[CASTLING_RIGHT_NB];
-    Bitboard   castlingPath[CASTLING_RIGHT_NB];
     StateInfo* st;
     int        gamePly;
     Color      sideToMove;
-    bool       chess960;
     Dirties    scratchDirties;
 };
 
@@ -276,20 +299,6 @@ inline Square Position::square(Color c) const {
     return lsb(pieces(c, Pt));
 }
 
-inline Square Position::ep_square() const { return st->epSquare; }
-
-inline bool Position::can_castle(CastlingRights cr) const { return st->castlingRights & cr; }
-
-inline bool Position::castling_impeded(CastlingRights cr) const {
-    assert(cr == WHITE_OO || cr == WHITE_OOO || cr == BLACK_OO || cr == BLACK_OOO);
-    return pieces() & castlingPath[cr];
-}
-
-inline Square Position::castling_rook_square(CastlingRights cr) const {
-    assert(cr == WHITE_OO || cr == WHITE_OOO || cr == BLACK_OO || cr == BLACK_OOO);
-    return castlingRookSquare[cr];
-}
-
 inline Bitboard Position::attackers_to(Square s) const { return attackers_to(s, pieces()); }
 
 template<PieceType Pt>
@@ -303,7 +312,7 @@ inline Bitboard Position::attacks_by(Color c) const {
         Bitboard threats   = 0;
         Bitboard attackers = pieces(c, Pt);
         while (attackers)
-            threats |= Attacks::attacks_bb<Pt>(pop_lsb(attackers), pieces());
+            threats |= Attacks::attacks_bb(make_piece(c, Pt), pop_lsb(attackers), pieces());
         return threats;
     }
 }
@@ -316,12 +325,32 @@ inline Bitboard Position::pinners(Color c) const { return st->pinners[c]; }
 
 inline Bitboard Position::check_squares(PieceType pt) const { return st->checkSquares[pt]; }
 
-inline Key Position::key() const { return adjust_key50(st->key); }
+inline Key Position::key() const { return adjust_key_count(st->key); }
 
-template<bool AfterMove>
-inline Key Position::adjust_key50(Key k) const {
-    return st->rule50 < 14 - AfterMove ? k : k ^ make_key((st->rule50 - (14 - AfterMove)) / 8);
+// Adds a component from the remaining counting horizon to the key, in buckets of
+// 8 plies, starting 86 plies before the counting draw (as upstream did for the
+// 50-move rule). Positions without a count keep the plain key.
+inline Key Position::adjust_key_count(Key k, int plies) const {
+    int h = count_horizon() - plies;
+    return !CountingKey || h > 86 ? k : k ^ make_key((86 - h) / 8);
 }
+
+// Returns the plies from this position until the counting draw of R5.5 row 4,
+// if no new count starts (R5.9). Without a count there is no horizon.
+inline int Position::count_horizon() const {
+    if (st->countType == COUNT_NONE)
+        return NoCountingHorizon;
+
+    if (st->countType == COUNT_BOARD)
+        return pieces(WHITE) == pieces(WHITE, KING) || pieces(BLACK) == pieces(BLACK, KING)
+               ? 0
+               : 128 - st->countPly;
+
+    return 2 * (st->countLimit + 1 - st->countNext) + (sideToMove != st->countSide);
+}
+
+// Tests the counting draw of R5.5 row 4. A checkmate still wins (row 1).
+inline bool Position::is_counting_draw() const { return count_horizon() <= 0; }
 
 inline Key Position::pawn_key() const { return st->pawnKey; }
 
@@ -341,39 +370,17 @@ inline int Position::game_ply() const { return gamePly; }
 
 inline int Position::rule50_count() const { return st->rule50; }
 
-inline bool Position::is_chess960() const { return chess960; }
-
-inline bool Position::dtz_is_dtm() const {
-    return !count<PAWN>()
-        && (count<ALL_PIECES>() == 3 || (count<ALL_PIECES>() == 4 && !pieces(QUEEN, ROOK)));
-}
-
 inline bool Position::capture(Move m) const {
     assert(m.is_ok());
-
-    const MoveType mt = m.type_of();
-
-    if (mt == NORMAL || mt == PROMOTION)
-        return !empty(m.to_sq());
-
-    return mt == EN_PASSANT;
+    return !empty(m.to_sq());
 }
 
 // Returns true if a move is generated from the capture stage, having also
-// queen promotions covered, i.e. consistency with the capture stage move
-// generation is needed to avoid the generation of duplicate moves.
+// promotions (always to Met) covered, i.e. consistency with the capture stage
+// move generation is needed to avoid the generation of duplicate moves.
 inline bool Position::capture_stage(Move m) const {
     assert(m.is_ok());
-
-    const MoveType mt = m.type_of();
-
-    if (mt == NORMAL)
-        return !empty(m.to_sq());
-
-    if (mt == PROMOTION)
-        return !empty(m.to_sq()) || m.promotion_type() == QUEEN;
-
-    return mt == EN_PASSANT;
+    return !empty(m.to_sq()) || m.type_of() == PROMOTION;
 }
 
 inline Piece Position::captured_piece() const { return st->capturedPiece; }

@@ -38,7 +38,7 @@ class PP_3Wide {
 
     // Pawn pair feature indices are concatenated to threats, so this must equal ThreatFeatureSet::Dimensions;
     // see nnue_feature_transformer.h
-    static constexpr IndexType IndexBase = 59808;
+    static constexpr IndexType IndexBase = 33488;
     using IndexList                      = ValueList<u16, 256>;
     using DiffType                       = DirtyPawnPairs;
 

@@ -160,6 +160,10 @@ void UCIEngine::loop() {
             sync_cout << engine.visualize() << sync_endl;
         else if (token == "eval")
             engine.trace_eval();
+        else if (token == "nnuefeatures")
+            sync_cout << engine.nnue_features() << sync_endl;
+        else if (token == "nnuetest")
+            engine.nnue_test(is);
         else if (token == "compiler")
             sync_cout << compiler_info() << sync_endl;
         else if (token == "export_net")
@@ -174,11 +178,12 @@ void UCIEngine::loop() {
         }
         else if (token == "--help" || token == "help" || token == "--license" || token == "license")
             sync_cout
-              << "\nStockfish is a powerful chess engine for playing and analyzing."
+              << "\nPlatoo is a Thai Makruk engine for analysis, derived from Stockfish."
+                 "\nStockfish is copyright (C) 2004-2026 The Stockfish developers (see AUTHORS file)."
                  "\nIt is released as free software licensed under the GNU GPLv3 License."
-                 "\nStockfish is normally used with a graphical user interface (GUI) and implements"
+                 "\nPlatoo is normally used with a graphical user interface (GUI) and implements"
                  "\nthe Universal Chess Interface (UCI) protocol to communicate with a GUI, an API, etc."
-                 "\nFor any further information, visit https://github.com/official-stockfish/Stockfish#readme"
+                 "\nFor Stockfish itself, visit https://github.com/official-stockfish/Stockfish#readme"
                  "\nor read the corresponding README.md and Copying.txt files distributed along with this program.\n"
               << sync_endl;
         else if (!token.empty() && token[0] != '#')
@@ -338,8 +343,6 @@ void UCIEngine::benchmark(std::istream& args) {
     setoption(ss);
     ss = std::istringstream("name Hash value " + std::to_string(setup.ttSize));
     setoption(ss);
-    ss = std::istringstream("name UCI_Chess960 value false");
-    setoption(ss);
 
     // Warmup
     for (const auto& cmd : setup.commands)
@@ -486,7 +489,7 @@ void UCIEngine::setoption(std::istringstream& is) {
 }
 
 u64 UCIEngine::perft(const Search::LimitsType& limits) {
-    auto result = engine.perft(engine.fen(), limits.perft, engine.get_options()["UCI_Chess960"]);
+    auto result = engine.perft(engine.fen(), limits.perft);
     if (auto err = std::get_if<PositionSetError>(&result))
         terminate_on_critical_error(err->what());
 
@@ -539,12 +542,13 @@ WinRateParams win_rate_params(const Position& pos) {
     int material = pos.count<PAWN>() + 3 * pos.count<KNIGHT>() + 3 * pos.count<BISHOP>()
                  + 5 * pos.count<ROOK>() + 9 * pos.count<QUEEN>();
 
-    // The fitted model only uses data for material counts in [17, 78], and is anchored at count 58.
-    double m = std::clamp(material, 17, 78) / 58.0;
+    // Makruk fit: 5.9M self-play positions, Fairy-SF scores in
+    // internal units, Thai game results. It uses material counts in [8, 78], anchored at 78.
+    double m = std::clamp(material, 8, 78) / 78.0;
 
     // Return a = p_a(material) and b = p_b(material), see github.com/official-stockfish/WDL_model
-    constexpr double as[] = {-142.72052667, 372.35176398, -340.71073572, 415.23490212};
-    constexpr double bs[] = {5.93832785, 15.61267078, -30.57816876, 69.63866711};
+    constexpr double as[] = {1066.99549881, -2419.49744513, 1482.00457582, 248.85027025};
+    constexpr double bs[] = {244.15649491, -496.63469840, 444.12719320, 53.60840299};
 
     double a = (((as[0] * m + as[1]) * m + as[2]) * m) + as[3];
     double b = (((bs[0] * m + bs[1]) * m + bs[2]) * m) + bs[3];
@@ -608,23 +612,18 @@ std::string UCIEngine::square(Square s) {
     return std::string{char('a' + file_of(s)), char('1' + rank_of(s))};
 }
 
-std::string UCIEngine::move(Move m, bool chess960) {
+std::string UCIEngine::move(Move m) {
     if (m == Move::none())
         return "(none)";
 
     if (m == Move::null())
         return "0000";
 
-    Square from = m.from_sq();
-    Square to   = m.to_sq();
+    std::string move = square(m.from_sq()) + square(m.to_sq());
 
-    if (m.type_of() == CASTLING && !chess960)
-        to = make_square(to > from ? FILE_G : FILE_C, rank_of(from));
-
-    std::string move = square(from) + square(to);
-
+    // Promotion suffix 'm' (Met) is required on output (R6.2)
     if (m.type_of() == PROMOTION)
-        move += " pnbrqk"[m.promotion_type()];
+        move += " pnsrmk"[m.promotion_type()];
 
     return move;
 }
@@ -640,8 +639,9 @@ std::string UCIEngine::to_lower(std::string str) {
 Move UCIEngine::to_move(const Position& pos, std::string str) {
     str = to_lower(str);
 
+    // A promotion is accepted with or without its 'm' suffix (R6.3)
     for (const auto& m : MoveList<LEGAL>(pos))
-        if (str == move(m, pos.is_chess960()))
+        if (str == move(m) || (m.type_of() == PROMOTION && str == move(m).substr(0, 4)))
             return m;
 
     return Move::none();
@@ -669,7 +669,6 @@ void UCIEngine::on_update_full(const Engine::InfoFull& info, bool showWDL) {
     ss << " nodes " << info.nodes        //
        << " nps " << info.nps            //
        << " hashfull " << info.hashfull  //
-       << " tbhits " << info.tbHits      //
        << " time " << info.timeMs        //
        << " pv " << info.pv;             //
 

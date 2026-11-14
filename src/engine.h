@@ -37,7 +37,6 @@
 #include "numa.h"
 #include "position.h"
 #include "search.h"
-#include "syzygy/tbprobe.h"  // for Stockfish::Depth
 #include "thread.h"
 #include "tt.h"
 #include "types.h"
@@ -64,7 +63,7 @@ class Engine {
 
     ~Engine() { wait_for_search_finished(); }
 
-    std::variant<u64, PositionSetError> perft(const std::string& fen, Depth depth, bool isChess960);
+    std::variant<u64, PositionSetError> perft(const std::string& fen, Depth depth);
 
     // non blocking call to start searching
     void go(Search::LimitsType&);
@@ -102,6 +101,10 @@ class Engine {
     // utility functions
 
     void trace_eval() const;
+
+    // Makruk NNUE debug commands: feature lists, incremental = refresh test
+    std::string nnue_features() const;
+    bool        nnue_test(std::istream& args);
 
     const OptionsMap& get_options() const;
     OptionsMap&       get_options();

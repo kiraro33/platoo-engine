@@ -61,8 +61,9 @@ using WeightType       = i16;
 using PSQTWeightType   = i32;
 using IndexType        = u32;
 
-// Version of the evaluation file
-constexpr u32 Version = 0x6A448AFAu;
+// Version of the evaluation file: Platoo MKNNv1 ("MKN1"). Stockfish chess
+// nets (0x6A448AFA) are rejected.
+constexpr u32 Version = 0x4D4B4E31u;
 
 // Constant used in evaluation value calculation
 constexpr int OutputScale     = 16;
