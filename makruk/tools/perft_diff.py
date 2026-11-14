@@ -10,7 +10,7 @@ missing / extra moves.
 Python 3 standard library only. Engines are spawned with pipes (no
 PowerShell piping, so no UTF-8 BOM problem).
 
-Modes (see makruk/tools/README.md):
+Modes:
   diff (default)  --engine-a X --engine-b Y --depth D [--positions F | --random N --seed S]
   check EPD       --check-epd FILE --engine X [--max-depth D] [--oracle Y]
   make EPD        --make-epd OUT --engine X --depths 1-4 [--positions F | --random N --seed S]
