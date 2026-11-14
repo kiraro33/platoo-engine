@@ -6,6 +6,8 @@
 
   A Thai Makruk (หมากรุกไทย) analysis engine, derived from Stockfish.
 
+  **English** | [ภาษาไทย](README.th.md)
+
 </div>
 
 ## Overview
