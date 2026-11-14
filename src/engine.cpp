@@ -34,12 +34,12 @@
 #include "misc.h"
 #include "nnue/network.h"
 #include "nnue/nnue_common.h"
+#include "nnue/nnue_test.h"
 #include "numa.h"
 #include "perft.h"
 #include "position.h"
 #include "search.h"
 #include "shm.h"
-#include "syzygy/tbprobe.h"
 #include "types.h"
 #include "uci.h"
 #include "ucioption.h"
@@ -64,7 +64,7 @@ Engine::Engine(std::optional<std::filesystem::path> path) :
     networkFile{std::nullopt, ""},
     network(numaContext, get_default_network()) {
 
-    pos.set(StartFEN, false, &states->back());
+    pos.set(StartFEN, &states->back());
 
     options.add(  //
       "Debug Log File", Option("", [](const Option& o) {
@@ -108,9 +108,13 @@ Engine::Engine(std::optional<std::filesystem::path> path) :
 
     options.add("Move Overhead", Option(10, 0, 5000));
 
+    // Draw score for the side to move at the root, in cp. 0 keeps analysis neutral.
+    options.add("Contempt", Option(0, -100, 100));
+
     options.add("nodestime", Option(0, 0, 10000));
 
-    options.add("UCI_Chess960", Option(false));
+    // Makruk is the only variant (R6.4). GUIs and cutechess send it.
+    options.add("UCI_Variant", Option("makruk var makruk", "makruk"));
 
     options.add("UCI_LimitStrength", Option(false));
 
@@ -120,41 +124,30 @@ Engine::Engine(std::optional<std::filesystem::path> path) :
 
     options.add("UCI_ShowWDL", Option(false));
 
-    options.add(  //
-      "SyzygyPath", Option("", [](const Option& o) {
-          Tablebases::init(o);
-          return std::nullopt;
-      }));
-
-    options.add("SyzygyProbeDepth", Option(1, 1, 100));
-
-    options.add("Syzygy50MoveRule", Option(true));
-
-    options.add("SyzygyProbeLimit", Option(7, 0, 7));
-
+#ifndef MAKRUK_TEMP_EVAL
     options.add(  //
       "EvalFile", Option(EvalFileDefaultName, [this](const Option& o) {
           load_network(path_from_utf8(std::string(o)));
           return std::nullopt;
       }));
+#endif
 
     threads.clear();
     threads.ensure_network_replicated();
     resize_threads();
 }
 
-std::variant<u64, PositionSetError>
-Engine::perft(const std::string& fen, Depth depth, bool isChess960) {
+std::variant<u64, PositionSetError> Engine::perft(const std::string& fen, Depth depth) {
     verify_network();
 
-    return Benchmark::perft(fen, depth, isChess960);
+    return Benchmark::perft(fen, depth);
 }
 
 void Engine::go(Search::LimitsType& limits) {
     assert(limits.perft == 0);
     verify_network();
 
-    threads.start_thinking(options, pos, states, limits);
+    threads.start_thinking(pos, states, limits);
 }
 void Engine::stop() { threads.stop = true; }
 
@@ -163,9 +156,6 @@ void Engine::search_clear() {
 
     tt.clear(threads);
     threads.clear();
-
-    // TODO: does not work with multiple instances
-    Tablebases::init(options["SyzygyPath"]);  // Free mapped files
 }
 
 void Engine::set_on_update_no_moves(std::function<void(const Engine::InfoShort&)>&& f) {
@@ -196,7 +186,7 @@ std::optional<PositionSetError> Engine::set_position(const std::string&         
                                                      const std::vector<std::string>& moves) {
     // Drop the old state and create a new one
     states   = StateListPtr(new std::deque<StateInfo>(1));
-    auto err = pos.set(fen, options["UCI_Chess960"], &states->back());
+    auto err = pos.set(fen, &states->back());
     if (err.has_value())
         return err;
 
@@ -264,8 +254,12 @@ void Engine::set_ponderhit(bool b) { threads.main_manager()->ponder = b; }
 // network related
 
 void Engine::verify_network() const {
+#ifdef MAKRUK_TEMP_EVAL
+    return;  // The classical eval needs no network
+#endif
+
     const auto file = path_from_utf8(std::string(options["EvalFile"]));
-    network->verify(onVerifyNetwork, networkFile, file);
+    network->verify(onVerifyNetwork, networkFile, file, binaryDirectory);
 
     auto statuses = network.get_status_and_errors();
     for (usize i = 0; i < statuses.size(); ++i)
@@ -302,7 +296,9 @@ std::unique_ptr<Eval::NNUE::Network> Engine::get_default_network() {
 
     auto network_ = std::make_unique<NN::Network>();
 
+#ifndef MAKRUK_TEMP_EVAL
     network_->load(binaryDirectory, std::filesystem::path{}, networkFile);
+#endif
 
     return network_;
 }
@@ -324,11 +320,24 @@ void Engine::save_network(const std::optional<std::filesystem::path>& file) {
 void Engine::trace_eval() const {
     StateListPtr trace_states(new std::deque<StateInfo>(1));
     Position     p;
-    p.set(pos.fen(), options["UCI_Chess960"], &trace_states->back());
+    p.set(pos.fen(), &trace_states->back());
 
     verify_network();
 
     sync_cout << "\n" << Eval::trace(p, *network) << sync_endl;
+}
+
+std::string Engine::nnue_features() const { return Eval::NNUE::NNUETester::features(pos); }
+
+bool Engine::nnue_test(std::istream& args) {
+#ifdef MAKRUK_TEMP_EVAL
+    (void) args;
+    sync_cout << "nnuetest: needs a build with nnue=yes" << sync_endl;
+    return false;
+#else
+    verify_network();
+    return Eval::NNUE::NNUETester::incremental_test(*network, args);
+#endif
 }
 
 const OptionsMap& Engine::get_options() const { return options; }

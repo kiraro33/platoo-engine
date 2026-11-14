@@ -224,14 +224,26 @@ constexpr Bitboard king_attack(Square sq) {
     return b;
 }
 
+// Met: 1 square diagonally (R2.2)
+constexpr Bitboard met_attack(Square sq) {
+    Bitboard b = {};
+    for (int step : {-9, -7, 7, 9})
+        b |= safe_destination(sq, step);
+    return b;
+}
+
+// Khon: 1 square diagonally or 1 square straight forward (R2.3)
+constexpr Bitboard khon_attack(Color c, Square sq) {
+    return met_attack(sq) | safe_destination(sq, pawn_push(c));
+}
+
 constexpr Bitboard pseudo_attacks(PieceType pt, Square sq) {
     switch (pt)
     {
     case PieceType::ROOK :
-    case PieceType::BISHOP :
         return sliding_attack(pt, sq, 0);
     case PieceType::QUEEN :
-        return sliding_attack(PieceType::ROOK, sq, 0) | sliding_attack(PieceType::BISHOP, sq, 0);
+        return met_attack(sq);
     case PieceType::KNIGHT :
         return knight_attack(sq);
     case PieceType::KING :
@@ -242,6 +254,21 @@ constexpr Bitboard pseudo_attacks(PieceType pt, Square sq) {
     }
 }
 
+// Khon attacks depend on the colour: KhonAttacks[c][s]
+inline constexpr auto KhonAttacks = []() constexpr {
+    std::array<std::array<Bitboard, SQUARE_NB>, COLOR_NB> attacks{};
+
+    for (Square s1 = SQ_A1; s1 <= SQ_H8; ++s1)
+    {
+        attacks[WHITE][s1] = khon_attack(WHITE, s1);
+        attacks[BLACK][s1] = khon_attack(BLACK, s1);
+    }
+
+    return attacks;
+}();
+
+// PseudoAttacks[WHITE/BLACK] hold the Bia attacks. Khon attacks depend on the
+// colour and are given by KhonAttacks (PseudoAttacks[BISHOP] is unused).
 inline constexpr auto PseudoAttacks = []() constexpr {
     std::array<std::array<Bitboard, SQUARE_NB>, PIECE_TYPE_NB> attacks{};
 
@@ -252,8 +279,8 @@ inline constexpr auto PseudoAttacks = []() constexpr {
 
         attacks[KING][s1]   = pseudo_attacks(KING, s1);
         attacks[KNIGHT][s1] = pseudo_attacks(KNIGHT, s1);
-        attacks[QUEEN][s1] = attacks[BISHOP][s1] = pseudo_attacks(BISHOP, s1);
-        attacks[QUEEN][s1] |= attacks[ROOK][s1]  = pseudo_attacks(ROOK, s1);
+        attacks[ROOK][s1]   = pseudo_attacks(ROOK, s1);
+        attacks[QUEEN][s1]  = pseudo_attacks(QUEEN, s1);
     }
 
     return attacks;
@@ -272,81 +299,49 @@ inline constexpr auto PawnPushOrAttacks = []() constexpr {
 }();
 
 // Returns the pseudo attacks of the given piece type
-// assuming an empty board.
+// assuming an empty board. Bia and Khon attacks need the colour.
 template<PieceType Pt>
 inline Bitboard attacks_bb(Square s, Color c = COLOR_NB) {
 
-    assert((Pt != PAWN || c < COLOR_NB) && is_ok(s));
-    return Pt == PAWN ? PseudoAttacks[c][s] : PseudoAttacks[Pt][s];
+    assert(((Pt != PAWN && Pt != BISHOP) || c < COLOR_NB) && is_ok(s));
+    return Pt == PAWN   ? PseudoAttacks[c][s]
+         : Pt == BISHOP ? KhonAttacks[c][s]
+                        : PseudoAttacks[Pt][s];
 }
 
 // Returns the attacks by the given piece
 // assuming the board is occupied according to the passed Bitboard.
 // Sliding piece attacks do not continue past an occupied square.
+// The Rua (ROOK) is the only slider (R2.5).
 template<PieceType Pt>
 inline Bitboard attacks_bb(Square s, Bitboard occupied) {
 
-    assert(Pt != PAWN && is_ok(s));
+    assert(Pt != PAWN && Pt != BISHOP && is_ok(s));
 
+    if constexpr (Pt == ROOK)
 #ifdef USE_DUAL_HYPERBOLA_QUINT
-    [[maybe_unused]] const auto [bishop, rook] = dual_magic(s).both_attacks_bb(occupied);
-
-    switch (Pt)
-    {
-    case BISHOP :
-        return bishop;
-    case ROOK :
-        return rook;
-    case QUEEN :
-        return bishop | rook;
-    default :
-        return PseudoAttacks[Pt][s];
-    }
+        return dual_magic(s).both_attacks_bb(occupied).second;
 #else
-    switch (Pt)
-    {
-    case BISHOP :
-    case ROOK :
-        return magic(s, Pt).attacks_bb(s, occupied);
-    case QUEEN :
-        return attacks_bb<BISHOP>(s, occupied) | attacks_bb<ROOK>(s, occupied);
-    default :
-        return PseudoAttacks[Pt][s];
-    }
+        return magic(s, ROOK).attacks_bb(s, occupied);
 #endif
+    else
+        return PseudoAttacks[Pt][s];
 }
 
-inline std::pair<Bitboard, Bitboard> both_attacks_bb(Square s, Bitboard occupied) {
-#ifdef USE_DUAL_HYPERBOLA_QUINT
-    return dual_magic(s).both_attacks_bb(occupied);
-#else
-    return {attacks_bb<BISHOP>(s, occupied), attacks_bb<ROOK>(s, occupied)};
-#endif
-}
-
-// Returns the attacks by the given piece
+// Returns the attacks by the given piece type, which must not be a Bia or a
+// Khon (their attacks depend on the colour, use the Piece overload instead),
 // assuming the board is occupied according to the passed Bitboard.
-// Sliding piece attacks do not continue past an occupied square.
 inline Bitboard attacks_bb(PieceType pt, Square s, Bitboard occupied) {
 
-    assert(pt != PAWN && is_ok(s));
+    assert(pt != PAWN && pt != BISHOP && is_ok(s));
 
-    switch (pt)
-    {
-    case BISHOP :
-        return attacks_bb<BISHOP>(s, occupied);
-    case ROOK :
-        return attacks_bb<ROOK>(s, occupied);
-    case QUEEN :
-        return attacks_bb<QUEEN>(s, occupied);
-    default :
-        return PseudoAttacks[pt][s];
-    }
+    return pt == ROOK ? attacks_bb<ROOK>(s, occupied) : PseudoAttacks[pt][s];
 }
 
 inline Bitboard attacks_bb(Piece pc, Square s, Bitboard occupied) {
-    return type_of(pc) == PAWN ? PseudoAttacks[color_of(pc)][s]
-                               : attacks_bb(type_of(pc), s, occupied);
+    return type_of(pc) == PAWN   ? PseudoAttacks[color_of(pc)][s]
+         : type_of(pc) == BISHOP ? KhonAttacks[color_of(pc)][s]
+                                 : attacks_bb(type_of(pc), s, occupied);
 }
 
 }  // namespace Stockfish::Attacks

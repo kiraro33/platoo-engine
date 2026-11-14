@@ -163,9 +163,15 @@ Option& Option::operator=(const std::string& v) {
         std::string        token;
         std::istringstream ss(defaultValue);
         while (ss >> token)
-            comboMap.add(token, Option());
+            if (!comboMap.count(token))  // The default value is listed twice
+                comboMap.add(token, Option());
         if (!comboMap.count(v) || v == "var")
+        {
+            // E.g. UCI_Variant: only 'makruk' is supported (R6.4)
+            if (parent != nullptr && parent->info != nullptr)
+                parent->info("ERROR: unsupported value '" + v + "', ignored");
             return *this;
+        }
     }
 
     if (type == "string")

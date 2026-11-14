@@ -201,12 +201,14 @@ ExtMove* MovePicker::score(const MoveList<Type>& ml) {
     [[maybe_unused]] Bitboard threatByLesser[KING + 1];
     if constexpr (Type == QUIETS)
     {
+        // Value order Bia < Met < Khon ~ Ma < Rua (the Met is not the strongest piece)
         threatByLesser[PAWN]   = 0;
-        threatByLesser[KNIGHT] = threatByLesser[BISHOP] = pos.attacks_by<PAWN>(~us);
+        threatByLesser[QUEEN]  = pos.attacks_by<PAWN>(~us);
+        threatByLesser[KNIGHT] = threatByLesser[BISHOP] =
+          pos.attacks_by<QUEEN>(~us) | threatByLesser[QUEEN];
         threatByLesser[ROOK] =
           pos.attacks_by<KNIGHT>(~us) | pos.attacks_by<BISHOP>(~us) | threatByLesser[KNIGHT];
-        threatByLesser[QUEEN] = pos.attacks_by<ROOK>(~us) | threatByLesser[ROOK];
-        threatByLesser[KING]  = 0;
+        threatByLesser[KING] = 0;
     }
 
     ExtMove* it = cur;

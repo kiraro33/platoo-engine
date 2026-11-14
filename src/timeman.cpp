@@ -43,9 +43,13 @@ void TimeManagement::advance_nodes_time(i64 nodes) {
 // the bounds of time allowed for the current game ply. We currently support:
 //      1) x basetime (+ z increment)
 //      2) x moves in y seconds (+ z increment)
+//      3) x basetime without increment (sudden death, Makruk horizon)
+// quietPlies is the number of plies since the last capture or Bia move while no
+// count runs (0 during a count).
 void TimeManagement::init(Search::LimitsType& limits,
                           Color               us,
                           int                 ply,
+                          int                 quietPlies,
                           const OptionsMap&   options,
                           double&             originalTimeAdjust) {
     TimePoint npmsec = TimePoint(options["nodestime"]);
@@ -84,6 +88,29 @@ void TimeManagement::init(Search::LimitsType& limits,
         limits.inc[us] *= npmsec;
         limits.npmsec = npmsec;
         moveOverhead *= npmsec;
+    }
+
+    // Sudden death: Makruk games often last 150-200 moves, so plan on a horizon
+    // of expected moves left that shrinks slowly with the game, cap the maximum
+    // per move, and think less when nothing has happened for a while (locked
+    // positions). Model: makruk/tools/tmsim_sd.py.
+    if (limits.inc[us] == 0 && limits.movestogo == 0 && !useNodesTime)
+    {
+        double horizon  = std::max(45.0, 100.0 - 0.5 * (ply / 2 + 1));
+        double timeLeft = std::max(limits.time[us] / 10.0,
+                                   limits.time[us] - moveOverhead * (2 + horizon));
+        double opt      = timeLeft / horizon;
+
+        if (quietPlies > 30)
+            opt *= std::max(0.25, 1.0 - (quietPlies - 30) / 120.0);
+
+        optimumTime = TimePoint(std::max(1.0, opt));
+        maximumTime = TimePoint(std::max(
+          double(optimumTime), std::min(2.5 * timeLeft / horizon, 0.05 * limits.time[us])));
+
+        if (options["Ponder"])
+            optimumTime += optimumTime / 4;
+        return;
     }
 
     // These numbers are used where multiplications, divisions,

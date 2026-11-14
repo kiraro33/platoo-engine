@@ -1,0 +1,106 @@
+{
+  "about": "R5.11 `go` on a terminal root: no legal move -> 'info depth 0 score mate 0 / cp 0' and 'bestmove (none)'; a rule draw with legal moves -> 'info string result 1/2-1/2 <reason>', then a normal search and a legal bestmove.",
+  "cases": [
+    {
+      "id": "GO01",
+      "rules": ["R5.11", "R3.1", "R5.5"],
+      "desc": "checkmated root from a FEN (pieces' honor, C mated by S): mate 0, bestmove (none)",
+      "fen": "R3k3/8/4K3/8/8/8/8/8 b - - 0 1",
+      "moves": [],
+      "expect": {"result": "white_win", "reason": "checkmate",
+                 "go": {"bestmove": "(none)", "score": "mate 0", "no_result_info": true}},
+      "fairy_agrees": true
+    },
+    {
+      "id": "GO02",
+      "rules": ["R5.11", "R4.6", "E4"],
+      "desc": "E4: S mates on its last allowed move; the mated root after the moves gives mate 0, bestmove (none)",
+      "fen": "7k/R7/8/8/8/2N5/8/1R1K4 w - 16 15 40",
+      "moves": ["b1b8"],
+      "expect": {"result": "white_win", "reason": "checkmate",
+                 "go": {"bestmove": "(none)", "score": "mate 0", "no_result_info": true}},
+      "fairy_agrees": true
+    },
+    {
+      "id": "GO03",
+      "rules": ["R5.11", "R3.1", "X6", "E8"],
+      "desc": "E8 / X6: Black mates during board's honor: the mated root reports mate 0, bestmove (none)",
+      "fen": "4r3/1R6/8/N7/8/7k/8/7K b - 128 40 60",
+      "moves": ["e8e1"],
+      "expect": {"result": "black_win", "reason": "checkmate",
+                 "go": {"bestmove": "(none)", "score": "mate 0", "no_result_info": true}},
+      "fairy_agrees": true
+    },
+    {
+      "id": "GO04",
+      "rules": ["R5.11", "R3.1", "R5.8"],
+      "desc": "mated root from a board-count FEN: mate 0, bestmove (none)",
+      "fen": "8/1R6/8/N7/8/7k/8/4r2K w - 128 41 61",
+      "moves": [],
+      "expect": {"result": "black_win", "reason": "checkmate",
+                 "go": {"bestmove": "(none)", "score": "mate 0", "no_result_info": true}},
+      "fairy_agrees": true
+    },
+    {
+      "id": "GO05",
+      "rules": ["R5.11", "R3.2", "T16", "E17"],
+      "desc": "E17: stalemated root during a count: cp 0, bestmove (none)",
+      "fen": "k7/2M5/1K6/8/8/8/8/8 b - 128 20 60",
+      "moves": [],
+      "expect": {"result": "draw", "reason": "stalemate",
+                 "go": {"bestmove": "(none)", "score": "cp 0", "no_result_info": true}},
+      "fairy_agrees": true
+    },
+    {
+      "id": "GO06",
+      "rules": ["R5.11", "R5.5", "E6"],
+      "desc": "E6: counting draw with legal moves: info string result 1/2-1/2 counting, then a legal bestmove",
+      "fen": "4k3/8/3n4/8/8/8/8/R2K4 w - 128 129 100",
+      "moves": [],
+      "expect": {"result": "draw", "reason": "counting",
+                 "go": {"info_string": "result 1/2-1/2 counting", "bestmove_legal": true}},
+      "fairy_agrees": true
+    },
+    {
+      "id": "GO07",
+      "rules": ["R5.11", "R5.5", "E3"],
+      "desc": "E3: counting draw reached by C's move (pieces' honor): info string, legal bestmove",
+      "fen": "8/8/4k3/8/8/8/R7/RN1K4 b - 16 16 4",
+      "moves": ["e6e5"],
+      "expect": {"result": "draw", "reason": "counting",
+                 "go": {"info_string": "result 1/2-1/2 counting", "bestmove_legal": true}},
+      "fairy_agrees": true
+    },
+    {
+      "id": "GO08",
+      "rules": ["R5.11", "R3.4", "E18"],
+      "desc": "E18: Khun vs Khun root: info string result 1/2-1/2 bare-khuns, legal bestmove",
+      "fen": "4k3/8/8/8/8/8/8/3K4 w - - 0 1",
+      "moves": [],
+      "expect": {"result": "draw", "reason": "insufficient",
+                 "go": {"info_string": "result 1/2-1/2 bare-khuns", "bestmove_legal": true}},
+      "fairy_agrees": false,
+      "fairy_note": "D16: Fairy-SF has no K v K draw"
+    },
+    {
+      "id": "GO09",
+      "rules": ["R5.11", "R3.3"],
+      "desc": "3-fold repetition root (GE08 moves): info string result 1/2-1/2 repetition, legal bestmove",
+      "fen": "4k3/r7/8/p7/P7/8/R7/3K4 w - - 0 1",
+      "moves": ["a2b2", "a7b7", "b2a2", "b7a7", "a2b2", "a7b7", "b2a2", "b7a7"],
+      "expect": {"result": "draw", "reason": "repetition",
+                 "go": {"info_string": "result 1/2-1/2 repetition", "bestmove_legal": true}},
+      "fairy_agrees": true
+    },
+    {
+      "id": "GO10",
+      "rules": ["R5.11", "R1.3"],
+      "desc": "ongoing root (startpos): no 'info string result', legal bestmove",
+      "fen": "startpos",
+      "moves": [],
+      "expect": {"result": "ongoing", "reason": "none",
+                 "go": {"no_result_info": true, "bestmove_legal": true}},
+      "fairy_agrees": true
+    }
+  ]
+}

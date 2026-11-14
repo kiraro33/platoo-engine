@@ -61,41 +61,44 @@ endif
 
 ### Executable name
 ifeq ($(target_windows),yes)
-	EXE = stockfish.exe
+	EXE = platoo.exe
 else ifneq (,$(findstring wasm,$(ARCH)))
-	EXE = stockfish.js
+	EXE = platoo.js
 else
-	EXE = stockfish
+	EXE = platoo
 endif
 
 ### Installation dir definitions
 PREFIX = /usr/local
 BINDIR = $(PREFIX)/bin
 
-### Built-in benchmark for pgo-builds
+### Built-in benchmark for pgo-builds (nnue=yes: with the net given by EVALFILE=<net>)
 PGOBENCH = $(RUN_PREFIX) ./$(EXE) bench
+ifneq ($(EVALFILE),)
+	PGOBENCH = printf 'setoption name EvalFile value %s\nbench\nquit\n' '$(EVALFILE)' | $(RUN_PREFIX) ./$(EXE)
+endif
 
 ### Source and object files
-SRCS = attacks.cpp benchmark.cpp bitboard.cpp evaluate.cpp main.cpp \
+SRCS = attacks.cpp benchmark.cpp bitboard.cpp evaluate.cpp makruk_eval.cpp main.cpp \
 	misc.cpp movegen.cpp movepick.cpp position.cpp \
-	search.cpp thread.cpp timeman.cpp tt.cpp uci.cpp ucioption.cpp tune.cpp syzygy/tbprobe.cpp \
-	nnue/nnue_accumulator.cpp nnue/nnue_misc.cpp nnue/network.cpp \
+	search.cpp thread.cpp timeman.cpp tt.cpp uci.cpp ucioption.cpp tune.cpp \
+	nnue/nnue_accumulator.cpp nnue/nnue_misc.cpp nnue/nnue_test.cpp nnue/network.cpp \
 	nnue/features/half_ka_v2_hm.cpp nnue/features/full_threats.cpp nnue/features/pp_3wide.cpp \
 	engine.cpp score.cpp memory.cpp
 
 OTHER_SRCS = universal/entry_x86.cpp universal/entry_arm64.cpp universal/entry_riscv64.cpp universal/nnue_embed.cpp
 
-HEADERS = attacks.h benchmark.h bitboard.h evaluate.h misc.h movegen.h movepick.h history.h \
-		nnue/nnue_misc.h nnue/features/half_ka_v2_hm.h nnue/features/full_threats.h \
+HEADERS = attacks.h benchmark.h bitboard.h evaluate.h makruk_eval.h misc.h movegen.h movepick.h history.h \
+		nnue/nnue_misc.h nnue/nnue_test.h nnue/features/half_ka_v2_hm.h nnue/features/full_threats.h \
 		nnue/features/pp_3wide.h nnue/layers/affine_transform.h nnue/layers/affine_transform_sparse_input.h \
 		nnue/layers/clipped_relu.h nnue/layers/sqr_clipped_relu.h nnue/nnue_accumulator.h \
 		nnue/nnue_architecture.h nnue/nnue_common.h nnue/nnue_feature_transformer.h nnue/simd.h \
-		nnue/nnz_helper.h position.h search.h syzygy/tbprobe.h thread.h thread_native.h timeman.h \
+		nnue/nnz_helper.h position.h search.h thread.h thread_native.h timeman.h \
 		tt.h tune.h types.h uci.h ucioption.h perft.h nnue/network.h engine.h score.h numa.h memory.h shm.h shm_unix.h
 
 OBJS = $(notdir $(SRCS:.cpp=.o))
 
-VPATH = syzygy:nnue:nnue/features
+VPATH = nnue:nnue/features
 
 ### ==========================================================================
 ### Section 2. High-level Configuration
@@ -133,7 +136,7 @@ VPATH = syzygy:nnue:nnue/features
 # lsx = yes/no        --- -mlsx              --- Use Loongson SIMD eXtension
 # lasx = yes/no       --- -mlasx             --- Use Loongson Advanced SIMD eXtension
 # relaxedsimd = y/n   --- -mrelaxed-simd     --- Use WebAssembly relaxed SIMD extension
-# syzygy = yes/no     --- -DNO_TABLEBASES    --- Support Syzygy tablebase probing
+# nnue = yes/no       --- -DMAKRUK_TEMP_EVAL --- NNUE eval (MKNNv1, needs EvalFile), or the classical Makruk eval
 #
 # Note that Makefile is space sensitive, so when adding new architectures
 # or modifying existing flags, you have to make sure there are no extra spaces
@@ -199,7 +202,7 @@ rva23 = no
 lsx = no
 lasx = no
 relaxedsimd = no
-syzygy = yes
+nnue = no
 STRIP = strip
 
 ifneq ($(shell which clang-format-20 2> /dev/null),)
@@ -411,7 +414,6 @@ ifeq ($(ARCH),wasm32)
 	sse2 = yes
 	ssse3 = yes
 	sse41 = yes
-	syzygy = no
 endif
 
 ifeq ($(ARCH),wasm32-relaxed-simd)
@@ -421,7 +423,6 @@ ifeq ($(ARCH),wasm32-relaxed-simd)
 	ssse3 = yes
 	sse41 = yes
 	relaxedsimd = yes
-	syzygy = no
 endif
 
 ifeq ($(ARCH),ppc-32)
@@ -903,9 +904,29 @@ ifeq ($(pext),yes)
 	endif
 endif
 
-### Syzygy tablebases
-ifeq ($(syzygy),no)
-	CXXFLAGS += -DNO_TABLEBASES
+### Evaluation: the classical Makruk eval (default, nnue=no) needs no network.
+### nnue=yes (MKNNv1) embeds no network: set the UCI option EvalFile to a
+### platoo-*.nnue file. Chess nets are rejected.
+CXXFLAGS += -DNNUE_EMBEDDING_OFF
+ifeq ($(nnue),no)
+	CXXFLAGS += -DMAKRUK_TEMP_EVAL
+endif
+ifeq ($(UNIVERSAL_BUILD),true)
+    $(error Universal builds embed the network, and no Platoo net is distributed)
+endif
+ifeq ($(nnue),yes)
+    ifneq ($(filter profile-build,$(MAKECMDGOALS)),)
+        ifeq ($(EVALFILE),)
+            $(error nnue=yes profile-build needs EVALFILE=<net> (path to an platoo-*.nnue file) for the PGO bench)
+        endif
+    endif
+    # The AVX-512 code paths (ICL threat/PSQ index writers, AVX-512 accumulator tiles) have not
+    # been tested. ARCH=native on an AVX-512 host also stops here.
+    ifeq ($(avx512),yes)
+        ifneq ($(allow_untested_avx512),yes)
+            $(error AVX-512 NNUE paths are untested; use ARCH=x86-64-avxvnni or x86-64-bmi2, or allow_untested_avx512=yes for SDE/test runs)
+        endif
+    endif
 endif
 
 ### 3.8.1 Try to include git info for versioning and avoid recompiles if nothing changes
@@ -1006,7 +1027,7 @@ endif
 
 help:
 	@echo "" && \
-	echo "To compile stockfish, type: " && \
+	echo "To compile Platoo, type: " && \
 	echo "" && \
 	echo "make -j target [ARCH=arch] [COMP=compiler] [COMPCXX=cxx]" && \
 	echo "" && \
@@ -1016,7 +1037,7 @@ help:
 	echo "profile-build           > standard build with profile-guided optimization" && \
 	echo "build                   > skip profile-guided optimization" && \
 	echo "macos-lipo              > macOS x86-64 + Apple silicon universal binary" && \
-	echo "net                     > Download the default nnue nets" && \
+	echo "net                     > No-op: no default Platoo net yet (EvalFile)" && \
 	echo "strip                   > Strip executable" && \
 	echo "install                 > Install executable" && \
 	echo "clean                   > Clean up" && \
@@ -1208,12 +1229,12 @@ clean: objclean profileclean universalclean
 
 # clean binaries and objects
 objclean:
-	@rm -f stockfish stockfish.exe *.o ./syzygy/*.o ./nnue/*.o ./nnue/features/*.o $(BUILD_SHA_FILE) $(BUILD_DATE_FILE) $(BUILD_DIFFINDEX_FILE)
+	@rm -f platoo platoo.exe stockfish stockfish.exe *.o ./nnue/*.o ./nnue/features/*.o $(BUILD_SHA_FILE) $(BUILD_DATE_FILE) $(BUILD_DIFFINDEX_FILE)
 
 # clean auxiliary profiling files
 profileclean:
 	@rm -rf profdir
-	@rm -f bench.txt *.gcda *.gcno ./syzygy/*.gcda ./nnue/*.gcda ./nnue/features/*.gcda *.s PGOBENCH.out
+	@rm -f bench.txt *.gcda *.gcno ./nnue/*.gcda ./nnue/features/*.gcda *.s PGOBENCH.out
 	@rm -f stockfish.profdata *.profraw
 	@rm -f stockfish.*args*
 	@rm -f stockfish.*lt*
@@ -1229,7 +1250,11 @@ universalclean:
 
 # evaluation network (nnue)
 net:
-	@$(SHELL) ../scripts/net.sh
+ifeq ($(nnue),no)
+	@echo "nnue=no: classical Makruk eval, no network needed"
+else
+	@echo "nnue=yes: no network is embedded or downloaded; set the UCI option EvalFile to an platoo-*.nnue file"
+endif
 
 format:
 	$(CLANG-FORMAT) -i $(SRCS) $(OTHER_SRCS) $(HEADERS) -style=file
@@ -1270,7 +1295,7 @@ config-sanity: net
 	echo "arm_version: '$(arm_version)'" && \
 	echo "lsx: '$(lsx)'" && \
 	echo "lasx: '$(lasx)'" && \
-	echo "syzygy: '$(syzygy)'" && \
+	echo "nnue: '$(nnue)'" && \
 	echo "target_windows: '$(target_windows)'" && \
 	echo "" && \
 	echo "Flags:" && \
@@ -1306,7 +1331,7 @@ config-sanity: net
 	(test "$(neon)" = "yes" || test "$(neon)" = "no") && \
 	(test "$(lsx)" = "yes" || test "$(lsx)" = "no") && \
 	(test "$(lasx)" = "yes" || test "$(lasx)" = "no") && \
-	(test "$(syzygy)" = "yes" || test "$(syzygy)" = "no") && \
+	(test "$(nnue)" = "yes" || test "$(nnue)" = "no") && \
 	(test "$(comp)" = "gcc" || test "$(comp)" = "icx" || test "$(comp)" = "mingw" || \
 	 test "$(comp)" = "clang" || test "$(comp)" = "armv7a-linux-androideabi16-clang" || \
 	 test "$(comp)" = "aarch64-linux-android21-clang")

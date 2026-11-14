@@ -155,10 +155,41 @@ void init_magics(PieceType pt, Bitboard table[], Magic magics[][2]) {
 
     #if !defined(USE_DUAL_HYPERBOLA_QUINT) && !defined(USE_HYPERBOLA_QUINT)
 static std::array<Bitboard, 0x19000> RookTable;
-static std::array<Bitboard, 0x1480>  BishopTable;
     #endif
 }
 
+#endif
+
+#ifndef NDEBUG
+// Startup self-check of the empty-board attack tables: the number of
+// attacked squares summed over all 64 squares, and a few single squares.
+static bool attack_tables_ok() {
+
+    int bia[COLOR_NB] = {}, khon[COLOR_NB] = {}, ma = 0, met = 0, rua = 0, khun = 0;
+
+    for (Square s = SQ_A1; s <= SQ_H8; ++s)
+    {
+        for (Color c : {WHITE, BLACK})
+        {
+            bia[c] += popcount(attacks_bb<PAWN>(s, c));
+            khon[c] += popcount(attacks_bb<BISHOP>(s, c));
+        }
+        ma += popcount(attacks_bb<KNIGHT>(s));
+        met += popcount(attacks_bb<QUEEN>(s));
+        rua += popcount(attacks_bb<ROOK>(s, 0));
+        khun += popcount(attacks_bb<KING>(s));
+    }
+
+    return bia[WHITE] == 98 && bia[BLACK] == 98 && khon[WHITE] == 252 && khon[BLACK] == 252
+        && ma == 336 && met == 196 && rua == 896 && khun == 420
+        && attacks_bb<BISHOP>(SQ_E4, WHITE) == (SQ_D3 | SQ_F3 | SQ_D5 | SQ_F5 | SQ_E5)
+        && attacks_bb<BISHOP>(SQ_E4, BLACK) == (SQ_D3 | SQ_F3 | SQ_D5 | SQ_F5 | SQ_E3)
+        && attacks_bb<BISHOP>(SQ_A8, WHITE) == square_bb(SQ_B7)
+        && attacks_bb<BISHOP>(SQ_A8, BLACK) == (SQ_B7 | SQ_A7)
+        && attacks_bb<QUEEN>(SQ_H1) == square_bb(SQ_G2)
+        && attacks_bb<PAWN>(SQ_A3, WHITE) == square_bb(SQ_B4)
+        && attacks_bb<PAWN>(SQ_E6, BLACK) == (SQ_D5 | SQ_F5);
+}
 #endif
 
 void init() {
@@ -167,25 +198,24 @@ void init() {
     init_magics(Magics);
 #elif !defined(USE_DUAL_HYPERBOLA_QUINT)
     init_magics(ROOK, RookTable.data(), Magics);
-    init_magics(BISHOP, BishopTable.data(), Magics);
 #endif
 
+    // Only rook lines are needed: the Rua is the only slider (R2.5)
     for (Square s1 = SQ_A1; s1 <= SQ_H8; ++s1)
-    {
-        for (PieceType pt : {BISHOP, ROOK})
-            for (Square s2 = SQ_A1; s2 <= SQ_H8; ++s2)
+        for (Square s2 = SQ_A1; s2 <= SQ_H8; ++s2)
+        {
+            if (PseudoAttacks[ROOK][s1] & s2)
             {
-                if (PseudoAttacks[pt][s1] & s2)
-                {
-                    LineBB[s1][s2] = (attacks_bb(pt, s1, 0) & attacks_bb(pt, s2, 0)) | s1 | s2;
-                    BetweenBB[s1][s2] =
-                      (attacks_bb(pt, s1, square_bb(s2)) & attacks_bb(pt, s2, square_bb(s1)));
-                    RayPassBB[s1][s2] =
-                      attacks_bb(pt, s1, 0) & (attacks_bb(pt, s2, square_bb(s1)) | s2);
-                }
-                BetweenBB[s1][s2] |= s2;
+                LineBB[s1][s2] = (attacks_bb<ROOK>(s1, 0) & attacks_bb<ROOK>(s2, 0)) | s1 | s2;
+                BetweenBB[s1][s2] =
+                  (attacks_bb<ROOK>(s1, square_bb(s2)) & attacks_bb<ROOK>(s2, square_bb(s1)));
+                RayPassBB[s1][s2] =
+                  attacks_bb<ROOK>(s1, 0) & (attacks_bb<ROOK>(s2, square_bb(s1)) | s2);
             }
-    }
+            BetweenBB[s1][s2] |= s2;
+        }
+
+    assert(attack_tables_ok());
 }
 
 #ifndef USE_DUAL_HYPERBOLA_QUINT

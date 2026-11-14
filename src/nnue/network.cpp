@@ -23,6 +23,7 @@
 #include <fstream>
 #include <iostream>
 #include <optional>
+#include <sstream>
 #include <type_traits>
 #include <vector>
 #include <filesystem>
@@ -158,9 +159,44 @@ NetworkOutput Network::evaluate(const Position&    pos,
 }
 
 
+namespace {
+
+// Describes the version word of a net file that failed to load
+// (searched in the same directories as Network::load).
+std::string net_file_version_info(const fs::path& rootDirectory, const fs::path& file) {
+#if defined(DEFAULT_NNUE_DIRECTORY)
+    std::vector<fs::path> dirs = {fs::path{}, rootDirectory,
+                                  fs::path(stringify(DEFAULT_NNUE_DIRECTORY))};
+#else
+    std::vector<fs::path> dirs = {fs::path{}, rootDirectory};
+#endif
+
+    std::ifstream stream;
+    for (const auto& directory : dirs)
+        if (!stream.is_open())
+            stream.open(directory / file, std::ios::binary);
+
+    if (!stream.is_open())
+        return " File not found, and no net is embedded: set the UCI option EvalFile.";
+
+    const u32 version = read_little_endian<u32>(stream);
+    if (!stream)
+        return " The file is too short.";
+
+    std::stringstream ss;
+    ss << " The file has version 0x" << std::hex << std::uppercase << version
+       << (version == 0x6A448AFAu ? " (a Stockfish chess net)."
+           : version == Version   ? " (MKNNv1, but the hash, size or content does not match)."
+                                  : " (unknown).");
+    return ss.str();
+}
+
+}
+
 void Network::verify(const std::function<void(std::string_view)>& f,
                      const EvalFile&                              evalFile,
-                     fs::path                                     evalfilePath) const {
+                     fs::path                                     evalfilePath,
+                     const fs::path&                              rootDirectory) const {
     if (evalfilePath.empty())
         evalfilePath = evalFile.defaultName;
 
@@ -174,9 +210,9 @@ void Network::verify(const std::function<void(std::string_view)>& f,
               "The network file " + evalfilePath.string() + " was not loaded successfully.";
             std::string msg3 = "The UCI option EvalFile might need to specify the full path, "
                                "including the directory name, to the network file.";
-            std::string msg4 = "The default net can be downloaded from: "
-                               "https://tests.stockfishchess.org/api/nn/"
-                             + std::string(evalFile.defaultName);
+            std::string msg4 = "Platoo needs a Makruk net (MKNNv1, version 0x4D4B4E31, "
+                               "platoo-*.nnue); Stockfish chess nets are rejected."
+                             + net_file_version_info(rootDirectory, evalfilePath);
             std::string msg5 = "The engine will be terminated now.";
 
             std::string msg = "ERROR: " + msg1 + '\n' + "ERROR: " + msg2 + '\n' + "ERROR: " + msg3

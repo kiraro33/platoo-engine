@@ -40,6 +40,7 @@ class TimeManagement {
     void init(Search::LimitsType& limits,
               Color               us,
               int                 ply,
+              int                 quietPlies,
               const OptionsMap&   options,
               double&             originalTimeAdjust);
 

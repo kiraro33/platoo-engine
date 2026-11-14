@@ -1,0 +1,3 @@
+# Makruk perft vectors: FEN ;D1 n ;D2 n ...
+# counts by stockfish.exe (setoption name UCI_Variant value makruk)
+rnsmksnr/8/pppppppp/8/8/PPPPPPPP/8/RNSKMSNR w - - 0 1 ;D1 23 ;D2 529 ;D3 12012 ;D4 273026 ;D5 6223994 ;D6 142078049 ;D7 3299342874

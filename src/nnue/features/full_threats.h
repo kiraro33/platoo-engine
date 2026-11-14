@@ -29,18 +29,19 @@ class Position;
 
 namespace Stockfish::Eval::NNUE::Features {
 
-// Pawn diagonal threats only target knights and rooks (pawn-pawn relationships
-// are handled by the PP_3Wide feature set), so pawns have 4 valid targets.
-static constexpr int numValidTargets[PIECE_NB] = {0, 4, 10, 8, 8, 10, 0, 0,
-                                                  0, 4, 10, 8, 8, 10, 0, 0};
+// Makruk threat features (MKNNv1). Bia threats only target
+// Ma and Rua (Bia-Bia relationships are handled by the PP_3Wide feature set), so
+// Bia have 4 valid targets. Met threats target Bia, Ma, Rua and Met (8).
+static constexpr int numValidTargets[PIECE_NB] = {0, 4, 10, 10, 10, 8, 0, 0,
+                                                  0, 4, 10, 10, 10, 8, 0, 0};
 
 class FullThreats {
    public:
-    // Hash value embedded in the evaluation file
-    static constexpr u32 HashValue = 0x2e6b9d04u;
+    // Hash value embedded in the evaluation file ("MKTH")
+    static constexpr u32 HashValue = 0x4D4B5448u;
 
     // Number of feature dimensions
-    static constexpr IndexType Dimensions = 59808;
+    static constexpr IndexType Dimensions = 33488;
 
     // clang-format off
     // Orient a square according to perspective (rotates by 180 for black)
@@ -55,12 +56,13 @@ class FullThreats {
         SQ_A1, SQ_A1, SQ_A1, SQ_A1, SQ_H1, SQ_H1, SQ_H1, SQ_H1,
     };
 
+    // [attacker type][attacked type]: target slot within one target colour, -1 = no feature
     static constexpr int map[PIECE_TYPE_NB-2][PIECE_TYPE_NB-2] = {
       {-1,  0, -1,  1, -1, -1},
       { 0,  1,  2,  3,  4, -1},
-      { 0,  1,  2,  3, -1, -1},
-      { 0,  1,  2,  3, -1, -1},
       { 0,  1,  2,  3,  4, -1},
+      { 0,  1,  2,  3,  4, -1},
+      { 0,  1, -1,  2,  3, -1},
       {-1, -1, -1, -1, -1, -1}
     };
     // clang-format on

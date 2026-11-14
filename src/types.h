@@ -121,22 +121,6 @@ enum Color : u8 {
     COLOR_NB = 2
 };
 
-enum CastlingRights : u8 {
-    NO_CASTLING,
-    WHITE_OO,
-    WHITE_OOO = WHITE_OO << 1,
-    BLACK_OO  = WHITE_OO << 2,
-    BLACK_OOO = WHITE_OO << 3,
-
-    KING_SIDE      = WHITE_OO | BLACK_OO,
-    QUEEN_SIDE     = WHITE_OOO | BLACK_OOO,
-    WHITE_CASTLING = WHITE_OO | WHITE_OOO,
-    BLACK_CASTLING = BLACK_OO | BLACK_OOO,
-    ANY_CASTLING   = WHITE_CASTLING | BLACK_CASTLING,
-
-    CASTLING_RIGHT_NB = 16
-};
-
 enum Bound : u8 {
     BOUND_NONE,
     BOUND_UPPER,
@@ -193,21 +177,22 @@ constexpr Value mate_in(int ply) { return VALUE_MATE - ply; }
 
 constexpr Value mated_in(int ply) { return -VALUE_MATE + ply; }
 
-// In the code, we make the assumption that these values
-// are such that non_pawn_material() can be used to uniquely
-// identify the material on the board.
+// Makruk piece values: Bia, Ma, Khon, Rua, Met.
 constexpr Value PawnValue   = 208;
 constexpr Value KnightValue = 781;
-constexpr Value BishopValue = 825;
+constexpr Value BishopValue = 660;
 constexpr Value RookValue   = 1276;
-constexpr Value QueenValue  = 2538;
+constexpr Value QueenValue  = 420;
 
 
 // clang-format off
 enum PieceType : u8 {
     NO_PIECE_TYPE, PAWN, KNIGHT, BISHOP, ROOK, QUEEN, KING,
     ALL_PIECES = 0,
-    PIECE_TYPE_NB = 8
+    PIECE_TYPE_NB = 8,
+
+    // Makruk names. A promoted Bia (Bia-ngai) is a MET.
+    BIA = PAWN, MA = KNIGHT, KHON = BISHOP, RUA = ROOK, MET = QUEEN, KHUN = KING
 };
 
 enum Piece : u8 {
@@ -300,7 +285,6 @@ struct DirtyPiece {
 
     // if {add,remove}_sq is SQ_NONE, {add,remove}_pc is allowed to be
     // uninitialized
-    // castling uses add_sq and remove_sq to remove and add the rook
     Square remove_sq, add_sq;
     Piece  remove_pc, add_pc;
 };
@@ -331,14 +315,16 @@ struct DirtyThreat {
     u32 data;
 };
 
-// A piece can be involved in at most 8 outgoing attacks and 16 incoming attacks.
-// Moving a piece also can reveal at most 8 discovered attacks.
-// This implies that a non-castling move can change at most (8 + 16) * 3 + 8 = 80 features.
-// By similar logic, a castling move can change at most (5 + 1 + 3 + 9) * 2 = 36 features.
-// Thus, 80 should work as an upper bound. Finally, 16 entries are added to accommodate
-// unmasked vector stores near the end of the list.
+// Makruk: a piece is involved in at most 8 outgoing attacks (Ma) and 16 incoming
+// attacks (8 Ma squares, 4 diagonal and 4 orthogonal neighbours or nearest Rua).
+// Removing a piece with ray computation reveals at most 4 discovered Rua attacks.
+// The largest update is a capture (also with promotion): remove the mover with
+// rays, then swap the captured piece without rays: (8 + 16 + 4) + 2 * (8 + 16) = 76
+// changed features, so 80 is an upper bound (checked in do_move). Finally, 16
+// entries are added to accommodate unmasked vector stores near the end of the list.
+constexpr int MaxDirtyThreats = 80;
 
-using DirtyThreatList = ValueList<DirtyThreat, 96>;
+using DirtyThreatList = ValueList<DirtyThreat, MaxDirtyThreats + 16>;
 
 struct DirtyThreats {
     DirtyThreatList list;
@@ -387,10 +373,6 @@ constexpr Square flip_file(Square s) { return Square(s ^ SQ_H1); }
 // Swap color of piece B_KNIGHT <-> W_KNIGHT
 constexpr Piece operator~(Piece pc) { return Piece(pc ^ 8); }
 
-constexpr CastlingRights operator&(Color c, CastlingRights cr) {
-    return CastlingRights((c == WHITE ? WHITE_CASTLING : BLACK_CASTLING) & cr);
-}
-
 constexpr Square make_square(File f, Rank r) { return Square((r << 3) + f); }
 
 constexpr Piece make_piece(Color c, PieceType pt) { return Piece((c << 3) + pt); }
@@ -421,20 +403,18 @@ constexpr Direction pawn_push(Color c) { return c == WHITE ? NORTH : SOUTH; }
 constexpr Key make_key(u64 seed) { return seed * 6364136223846793005ULL + 1442695040888963407ULL; }
 
 
+// Makruk has no castling and no en passant (R2.1, R2.6)
 enum MoveType : u16 {
     NORMAL,
-    PROMOTION  = 1 << 14,
-    EN_PASSANT = 2 << 14,
-    CASTLING   = 3 << 14
+    PROMOTION = 1 << 14
 };
 
 // A move needs 16 bits to be stored
 //
 // bit  0- 5: destination square (from 0 to 63)
 // bit  6-11: origin square (from 0 to 63)
-// bit 12-13: promotion piece type - 2 (from KNIGHT-2 to QUEEN-2)
-// bit 14-15: special move flag: promotion (1), en passant (2), castling (3)
-// NOTE: en passant bit is set only when a pawn can be captured
+// bit 12-13: promotion piece type - 2 (always MET-2, R2.7)
+// bit 14-15: special move flag: promotion (1)
 //
 // Special cases are Move::none() and Move::null(). We can sneak these in because
 // in any normal move the destination square and origin square are always different,
