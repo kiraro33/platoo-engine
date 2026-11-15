@@ -25,6 +25,10 @@ Platoo is a UCI engine for **Makruk** under the **Thai association rules 2569**
   weights are included in this repository, and none are needed.
 - **Search:** Stockfish's search, with Makruk move generation, counting-aware draw
   detection and Makruk-tuned time management.
+- **Strength:** this repository ships no NNUE net, so it plays with the classical evaluation
+  only. That is the same engine as the *Easy* and *Medium* levels at
+  [platoo.kiraro.dev](https://platoo.kiraro.dev), which add node limits and random move choice.
+  *Pro* and *Pro Max* use our NNUE net (v8), which is not released, and are much stronger.
 
 ## What is different
 
