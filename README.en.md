@@ -72,6 +72,17 @@ generation. Platoo has a narrower goal: Makruk only, as close to current Stockfi
    3-fold on the board alone (the side to move is ignored), and Khun vs Khun is the only
    material draw.
 
+6. **Endgame tables with the counting rules built in.** Fairy-Stockfish has no Makruk
+   endgame tables, so in sparse endings it must find everything by search and can run out of
+   count or settle for a draw in a won position. Platoo reads exact tables for every position
+   with up to 5 pieces (145 files, 10.5 GB). Their values already include board's honor and
+   pieces' honor counting under the 2569 rules, so the engine knows both the result and whether
+   the mate fits inside the count. The tables are used inside the search (an exact value as soon
+   as captures bring the position down to 5 pieces) and at the root (only the best moves by
+   table value: fastest win, slowest loss), and `info string tb ...` lets a GUI or bot handle
+   draw offers. In our tests the tables were worth about +8 to +10 Elo. See
+   [Endgame tables](#endgame-tables).
+
 Move generation is checked against Fairy-Stockfish with perft, and the rules with 196 test
 cases in `makruk/tests/rules`.
 
