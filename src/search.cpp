@@ -39,6 +39,7 @@
 #include "nnue/network.h"
 #include "nnue/nnue_accumulator.h"
 #include "position.h"
+#include "tbprobe.h"
 #include "thread.h"
 #include "timeman.h"
 #include "tt.h"
@@ -584,9 +585,14 @@ bool Search::Worker::iterative_deepening() {
             double totalTime = mainThread->tm.optimum() * fallingEval * reduction
                              * bestMoveInstability * highBestMoveEffort;
 
-            if (rootMoves.size() == 1)
-                // Cap used time to 0.5s for a better viewer experience
+            // Cap used time to 0.5s for a better viewer experience, also when the
+            // tables already decided the root moves. A table win or loss
+            // is played at once; a table draw keeps searching for the move that
+            // gives the opponent the most chances to go wrong.
+            if (rootMoves.size() == 1 || rootInTB)
                 totalTime = std::min(500.0, totalTime);
+            if (rootInTB && rootMoves[0].tbScore != VALUE_DRAW)
+                totalTime = 0;
 
             auto elapsedTime = elapsed();
 
@@ -746,7 +752,7 @@ Value Search::Worker::search(
     Key   posKey;
     Move  move, excludedMove, bestMove;
     Depth extension, newDepth;
-    Value bestValue, value, eval, probCutBeta;
+    Value bestValue, value, eval, maxValue, probCutBeta;
     bool  givesCheck, improving, priorCapture, opponentWorsening;
     bool  capture, ttCapture;
     int   priorReduction;
@@ -761,6 +767,7 @@ Value Search::Worker::search(
     Color us      = pos.side_to_move();
     ss->moveCount = 0;
     bestValue     = -VALUE_INFINITE;
+    maxValue      = VALUE_INFINITE;
 
     ss->followPV = rootNode
                 || ((ss - 1)->followPV
@@ -912,6 +919,50 @@ Value Search::Worker::search(
     {
         // If such a mismatch is the only reason cutoff failed, the TT entry is now useless
         ttWriter.penalize(1);
+    }
+
+    // Step 7. Tablebases probe: exact values right after a capture or
+    // a promotion into material the tables cover. Distances beyond the counting
+    // horizon are draws (probe() reads the horizon of this position).
+    if (!rootNode && !excludedMove && pos.count<ALL_PIECES>() <= Tablebases::max_cardinality()
+        && (priorCapture || ((ss - 1)->currentMove).type_of() == PROMOTION))
+    {
+        Tablebases::ProbeResult tb = Tablebases::probe(pos);
+
+        // Force check of time on the next occasion (a probe may read from disk)
+        if (is_mainthread())
+            main_manager()->callsCnt = 0;
+
+        if (tb.ok)
+        {
+            // Pieces' honor tables give the exact mate distance
+            Value tbValue = tb.dtm && ss->ply + tb.dist < MAX_PLY
+                            ? mate_in(ss->ply + tb.dist)
+                            : VALUE_TB - std::min(ss->ply + tb.dist, MAX_PLY);
+
+            value = tb.wdl < 0 ? -tbValue : tb.wdl > 0 ? tbValue : VALUE_DRAW + drawValue[us];
+
+            Bound b = tb.wdl == 0 || (tb.dtm && is_mate(tbValue)) ? BOUND_EXACT
+                    : tb.wdl > 0                                  ? BOUND_LOWER
+                                                                  : BOUND_UPPER;
+
+            if (b == BOUND_EXACT || (b == BOUND_LOWER ? value >= beta : value <= alpha))
+            {
+                ttWriter.write(posKey, value_to_tt(value, ss->ply), ss->ttPv, b,
+                               std::min(MAX_PLY - 1, depth + 6), Move::none(), VALUE_NONE,
+                               tt.generation());
+
+                return value;
+            }
+
+            if (PvNode)
+            {
+                if (b == BOUND_LOWER)
+                    bestValue = value, alpha = std::max(alpha, bestValue);
+                else
+                    maxValue = value;
+            }
+        }
     }
 
     if (ss->inCheck)
@@ -1549,6 +1600,9 @@ moves_loop:  // When in check, search starts here
         captureHistory[pos.piece_on(prevSq)][prevSq][type_of(capturedPiece)] << 892;
     }
 
+    if (PvNode)
+        bestValue = std::min(bestValue, maxValue);
+
     // If no good move is found and the previous position was ttPv, then the previous
     // opponent move is probably good and the new position is added to the search tree.
     if (bestValue <= alpha)
@@ -2087,6 +2141,10 @@ void SearchManager::output_pv(Search::Worker&           worker,
 
         if (v == -VALUE_INFINITE)
             v = VALUE_ZERO;
+
+        // At a root in the tables show the table value unless the search found a mate
+        if (worker.rootInTB && !is_mate(v) && !is_mated(v))
+            v = rootMoves[i].tbScore;
 
         std::string pv;
         for (Move m : usePreviousScore ? rootMoves[i].previousPV : rootMoves[i].pv)

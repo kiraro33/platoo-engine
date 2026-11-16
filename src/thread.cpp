@@ -34,8 +34,10 @@
 #include "bitboard.h"
 #include "history.h"
 #include "memory.h"
+#include "misc.h"
 #include "movegen.h"
 #include "search.h"
+#include "tbprobe.h"
 #include "timeman.h"
 #include "types.h"
 #include "uci.h"
@@ -315,6 +317,11 @@ void ThreadPool::start_thinking(Position& pos, StateListPtr& states, Search::Lim
         for (const auto& m : MoveList<LEGAL>(pos))
             rootMoves.emplace_back(m);
 
+    // In the tables keep only the best moves by table value
+    const bool rootInTB = Tablebases::rank_root_moves(pos, rootMoves);
+    if (rootInTB)
+        sync_cout << Tablebases::root_info(pos) << sync_endl;
+
     // After ownership transfer 'states' becomes empty, so if we stop the search
     // and call 'go' again without setting a new position states.get() == nullptr.
     assert(states.get() || setupStates.get());
@@ -335,6 +342,7 @@ void ThreadPool::start_thinking(Position& pos, StateListPtr& states, Search::Lim
             th->worker->nmpMinPly                           = 0;
             th->worker->rootDepth                           = 0;
             th->worker->rootMoves                           = rootMoves;
+            th->worker->rootInTB                            = rootInTB;
             th->worker->rootPos.set(pos.fen(), &th->worker->rootState);
             th->worker->rootState = setupStates->back();
         });
