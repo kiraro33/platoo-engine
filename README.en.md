@@ -101,6 +101,27 @@ make -j build            # plain build, if profile-build fails
 
 Check the build with `./platoo bench` (`platoo.exe bench` on Windows): it should print `Nodes searched: 1949398`.
 
+## Endgame tables
+
+Platoo can use exact Makruk endgame tables for all positions with up to **5 pieces**
+(Khun included), under the Thai counting rules 2569: 145 `.mktbe` files, 10.5 GB.
+Download them from Hugging Face,
+[`kiraro33/platoo-egtb-5men`](https://huggingface.co/datasets/kiraro33/platoo-egtb-5men);
+the generator and the file format are in
+[`kiraro33/platoo-egtb`](https://github.com/kiraro33/platoo-egtb).
+
+Build with `tb=yes` (needs zstd: `pacman -S mingw-w64-x86_64-zstd` in MSYS2,
+`apt install libzstd-dev` on Debian/Ubuntu), then point the engine at the folder:
+
+```
+make -j profile-build tb=yes
+setoption name TBPath value <folder>      (several folders: separated by ';')
+```
+
+With the tables Platoo plays these endings perfectly, also inside the search, and prints
+`info string tb <win|draw|loss> <plies> ...` when the root position is in the tables. An empty
+`TBPath` (the default) changes nothing: `bench` stays the same.
+
 ## Neural network
 
 With `nnue=yes` Platoo evaluates with a Makruk NNUE, **MKNNv1**: Stockfish 19's SFNNv16

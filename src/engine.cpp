@@ -40,6 +40,7 @@
 #include "position.h"
 #include "search.h"
 #include "shm.h"
+#include "tbprobe.h"
 #include "types.h"
 #include "uci.h"
 #include "ucioption.h"
@@ -123,6 +124,13 @@ Engine::Engine(std::optional<std::filesystem::path> path) :
                        Stockfish::Search::Skill::HighestElo));
 
     options.add("UCI_ShowWDL", Option(false));
+
+    // Makruk endgame tables (.mktbe), directories separated by ';'
+    options.add(  //
+      "TBPath", Option("", [](const Option& o) {
+          std::string r = Tablebases::init(std::string(o));
+          return r.empty() ? std::nullopt : std::optional<std::string>(r);
+      }));
 
 #ifndef MAKRUK_TEMP_EVAL
     options.add(  //

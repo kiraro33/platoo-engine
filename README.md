@@ -70,6 +70,21 @@ make -j build            # build แบบปกติ (ใช้เมื่อ
 
 ทดสอบด้วยคำสั่ง `./platoo bench` (บน Windows ใช้ `platoo.exe bench`) ถ้าขึ้น `Nodes searched: 1949398` แสดงว่าพร้อมใช้งาน
 
+<a id="egtb"></a>
+
+## ฐานข้อมูลเผด็จหมาก (endgame tables)
+
+Platoo ใช้ฐานข้อมูลเผด็จหมากที่คำนวณไว้ครบทุกตำแหน่งที่มีหมาก **ไม่เกิน 5 ตัว** (นับรวมขุน) ตามกติกาการนับศักดิ์ 2569 ได้ มีไฟล์ `.mktbe` 145 ไฟล์ ขนาดรวม 10.5 GB ดาวน์โหลดได้จาก Hugging Face [`kiraro33/platoo-egtb-5men`](https://huggingface.co/datasets/kiraro33/platoo-egtb-5men) ส่วนโปรแกรมสร้างไฟล์และรูปแบบไฟล์อยู่ที่ [`kiraro33/platoo-egtb`](https://github.com/kiraro33/platoo-egtb)
+
+คอมไพล์ด้วย `tb=yes` (ต้องมี zstd: ใน MSYS2 ใช้ `pacman -S mingw-w64-x86_64-zstd` บน Debian/Ubuntu ใช้ `apt install libzstd-dev`) แล้วบอกเอนจินว่าไฟล์อยู่ที่โฟลเดอร์ไหน
+
+```
+make -j profile-build tb=yes
+setoption name TBPath value <โฟลเดอร์>      (หลายโฟลเดอร์คั่นด้วย ';')
+```
+
+เมื่อมีฐานข้อมูล เอนจินจะเล่นเผด็จหมากเหล่านี้ได้สมบูรณ์ รวมถึงในการค้นหาด้วย และถ้าตำแหน่งปัจจุบันอยู่ในฐานข้อมูลจะพิมพ์ `info string tb <win|draw|loss> <ply> ...` ถ้าไม่ตั้ง `TBPath` (ค่าเริ่มต้น) ผลทุกอย่างเหมือนเดิม และ `bench` ไม่เปลี่ยน
+
 <a id="nnue"></a>
 
 ## โครงข่ายประสาทเทียม (NNUE)

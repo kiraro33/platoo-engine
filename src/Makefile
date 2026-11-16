@@ -84,7 +84,7 @@ SRCS = attacks.cpp benchmark.cpp bitboard.cpp evaluate.cpp makruk_eval.cpp main.
 	search.cpp thread.cpp timeman.cpp tt.cpp uci.cpp ucioption.cpp tune.cpp \
 	nnue/nnue_accumulator.cpp nnue/nnue_misc.cpp nnue/nnue_test.cpp nnue/network.cpp \
 	nnue/features/half_ka_v2_hm.cpp nnue/features/full_threats.cpp nnue/features/pp_3wide.cpp \
-	engine.cpp score.cpp memory.cpp
+	engine.cpp score.cpp memory.cpp tbprobe.cpp
 
 OTHER_SRCS = universal/entry_x86.cpp universal/entry_arm64.cpp universal/entry_riscv64.cpp universal/nnue_embed.cpp
 
@@ -94,7 +94,7 @@ HEADERS = attacks.h benchmark.h bitboard.h evaluate.h makruk_eval.h misc.h moveg
 		nnue/layers/clipped_relu.h nnue/layers/sqr_clipped_relu.h nnue/nnue_accumulator.h \
 		nnue/nnue_architecture.h nnue/nnue_common.h nnue/nnue_feature_transformer.h nnue/simd.h \
 		nnue/nnz_helper.h position.h search.h thread.h thread_native.h timeman.h \
-		tt.h tune.h types.h uci.h ucioption.h perft.h nnue/network.h engine.h score.h numa.h memory.h shm.h shm_unix.h
+		tt.h tune.h types.h uci.h ucioption.h perft.h nnue/network.h engine.h score.h numa.h memory.h shm.h shm_unix.h tbprobe.h
 
 OBJS = $(notdir $(SRCS:.cpp=.o))
 
@@ -137,6 +137,7 @@ VPATH = nnue:nnue/features
 # lasx = yes/no       --- -mlasx             --- Use Loongson Advanced SIMD eXtension
 # relaxedsimd = y/n   --- -mrelaxed-simd     --- Use WebAssembly relaxed SIMD extension
 # nnue = yes/no       --- -DMAKRUK_TEMP_EVAL --- NNUE eval (MKNNv1, needs EvalFile), or the classical Makruk eval
+# tb = yes/no         --- -DMAKRUK_TB        --- Makruk endgame tables (TBPath, .mktbe files); links libzstd
 #
 # Note that Makefile is space sensitive, so when adding new architectures
 # or modifying existing flags, you have to make sure there are no extra spaces
@@ -203,6 +204,7 @@ lsx = no
 lasx = no
 relaxedsimd = no
 nnue = no
+tb = no
 STRIP = strip
 
 ifneq ($(shell which clang-format-20 2> /dev/null),)
@@ -910,6 +912,10 @@ endif
 CXXFLAGS += -DNNUE_EMBEDDING_OFF
 ifeq ($(nnue),no)
 	CXXFLAGS += -DMAKRUK_TEMP_EVAL
+endif
+ifeq ($(tb),yes)
+	CXXFLAGS += -DMAKRUK_TB
+	LDFLAGS += -lzstd
 endif
 ifeq ($(UNIVERSAL_BUILD),true)
     $(error Universal builds embed the network, and no Platoo net is distributed)
