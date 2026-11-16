@@ -1,6 +1,6 @@
 /*
-  Platoo, a Thai Makruk engine derived from Stockfish
-  Copyright (C) 2004-2026 The Stockfish developers (see AUTHORS file)
+  Platoo, a Makruk (Thai chess) engine derived from Stockfish
+  Copyright (C) 2026 The Platoo developers (Kiraro33 (O.T.))
 
   Platoo is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
