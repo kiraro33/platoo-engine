@@ -55,7 +55,7 @@ namespace fs = std::filesystem;
 namespace {
 
 // Version number or dev.
-constexpr std::string_view version = "dev";
+constexpr std::string_view version = "1.2";
 
 // Our fancy logging facility. The trick here is to replace cin.rdbuf() and
 // cout.rdbuf() with two Tie objects that tie cin and cout to a file stream. We
@@ -176,9 +176,10 @@ std::string engine_version_info() {
 }
 
 std::string engine_info(bool to_uci) {
-    return engine_version_info() + (to_uci ? "\nid author " : " by ")
-         + "the Platoo developers, based on Stockfish by the Stockfish developers"
-           " (see AUTHORS file)";
+    return engine_version_info()
+         + (to_uci ? "\nid author Kiraro33 (O.T.)"
+                   : " by Kiraro33 (O.T.), based on Stockfish by the Stockfish developers"
+                     " (see AUTHORS file)");
 }
 
 
