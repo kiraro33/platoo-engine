@@ -113,6 +113,24 @@ setoption name TBPath value <โฟลเดอร์>      (หลายโฟ�
 
 เอนจินไม่ได้แถมไฟล์โมเดลมาให้ ต้องเตรียมไฟล์ `platoo-<sha12>.nnue` ของตัวเอง แล้วโหลดด้วยคำสั่ง `setoption name EvalFile value <path>` (ไฟล์ NNUE ของ Fairy-Stockfish และของหมากรุกสากลใช้ไม่ได้) ดูโครงสร้าง ดัชนีฟีเจอร์ รูปแบบไฟล์ และวิธีเทรนโมเดลได้ที่ [`makruk/docs/NNUE_ARCHITECTURE.md`](makruk/docs/NNUE_ARCHITECTURE.md) (ภาษาอังกฤษ)
 
+คอมไพล์แบบ NNUE (ต้องบอกไฟล์ net ด้วย `EVALFILE` เพราะ `profile-build` จะรัน `bench` กับ net นั้นเพื่อปรับความเร็ว):
+
+```
+cd src
+make objclean                                                     # เมื่อเคยคอมไพล์แบบ nnue=no มาก่อน
+make -j profile-build nnue=yes EVALFILE=/path/to/platoo-<sha12>.nnue
+```
+
+แล้วโหลดไฟล์ net (ไฟล์เดียว) ทุกครั้งที่เปิดเอนจิน:
+
+```
+setoption name EvalFile value /path/to/platoo-<sha12>.nnue
+isready
+```
+
+- `nnue=yes` ยังไม่รองรับ ARCH แบบ AVX-512 ให้ใช้ `ARCH=x86-64-avxvnni` หรือ `ARCH=x86-64-bmi2`
+- ใน [Cute Makruk](#cute-makruk) ใช้ช่อง *ไฟล์ net (EvalFile)* ในหน้าตั้งค่าเอนจินแทนได้
+
 ```mermaid
 flowchart LR
     P["ตำแหน่งบนกระดาน<br/>(มุมมองทั้งสองฝ่าย)"] --> HK["HalfKAv2_hm<br/>22,528"]
