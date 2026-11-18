@@ -73,7 +73,7 @@ endif
 PREFIX = /usr/local
 BINDIR = $(PREFIX)/bin
 
-### Built-in benchmark for pgo-builds (nnue=yes: with the net given by EVALFILE=<net>)
+### Built-in benchmark for pgo-builds (nnue=yes: the embedded net, or the net given by EVALFILE=<net>)
 PGOBENCH = $(RUN_PREFIX) ./$(EXE) bench
 ifneq ($(EVALFILE),)
 	PGOBENCH = printf 'setoption name EvalFile value %s\nbench\nquit\n' '$(EVALFILE)' | $(RUN_PREFIX) ./$(EXE)
@@ -137,7 +137,7 @@ VPATH = nnue:nnue/features
 # lsx = yes/no        --- -mlsx              --- Use Loongson SIMD eXtension
 # lasx = yes/no       --- -mlasx             --- Use Loongson Advanced SIMD eXtension
 # relaxedsimd = y/n   --- -mrelaxed-simd     --- Use WebAssembly relaxed SIMD extension
-# nnue = yes/no       --- -DMAKRUK_TEMP_EVAL --- NNUE eval (MKNNv1, needs EvalFile), or the classical Makruk eval
+# nnue = yes/no       --- -DMAKRUK_TEMP_EVAL --- NNUE eval (MKNNv1, embedded net), or the classical Makruk eval
 # tb = yes/no         --- -DMAKRUK_TB        --- Makruk endgame tables (TBPath, .mktbe files); links libzstd
 #
 # Note that Makefile is space sensitive, so when adding new architectures
@@ -204,7 +204,7 @@ rva23 = no
 lsx = no
 lasx = no
 relaxedsimd = no
-nnue = no
+nnue = yes
 tb = no
 STRIP = strip
 
@@ -907,26 +907,21 @@ ifeq ($(pext),yes)
 	endif
 endif
 
-### Evaluation: the classical Makruk eval (default, nnue=no) needs no network.
-### nnue=yes (MKNNv1) embeds no network: set the UCI option EvalFile to a
-### platoo-*.nnue file. Chess nets are rejected.
-CXXFLAGS += -DNNUE_EMBEDDING_OFF
+### Evaluation: nnue=yes (default, MKNNv1) embeds the default net named in
+### evaluate.h (EvalFileDefaultName, a platoo-*.nnue file in this folder); the UCI
+### option EvalFile can load another one. Chess nets are rejected.
+### nnue=no builds the classical Makruk eval, which needs no network.
 ifeq ($(nnue),no)
-	CXXFLAGS += -DMAKRUK_TEMP_EVAL
+	CXXFLAGS += -DMAKRUK_TEMP_EVAL -DNNUE_EMBEDDING_OFF
 endif
 ifeq ($(tb),yes)
 	CXXFLAGS += -DMAKRUK_TB
 	LDFLAGS += -lzstd
 endif
 ifeq ($(UNIVERSAL_BUILD),true)
-    $(error Universal builds embed the network, and no Platoo net is distributed)
+    $(error Universal (macOS lipo) builds are not supported by Platoo yet)
 endif
 ifeq ($(nnue),yes)
-    ifneq ($(filter profile-build,$(MAKECMDGOALS)),)
-        ifeq ($(EVALFILE),)
-            $(error nnue=yes profile-build needs EVALFILE=<net> (path to an platoo-*.nnue file) for the PGO bench)
-        endif
-    endif
     # The AVX-512 code paths (ICL threat/PSQ index writers, AVX-512 accumulator tiles) have not
     # been tested. ARCH=native on an AVX-512 host also stops here.
     ifeq ($(avx512),yes)
@@ -1044,7 +1039,7 @@ help:
 	echo "profile-build           > standard build with profile-guided optimization" && \
 	echo "build                   > skip profile-guided optimization" && \
 	echo "macos-lipo              > macOS x86-64 + Apple silicon universal binary" && \
-	echo "net                     > No-op: no default Platoo net yet (EvalFile)" && \
+	echo "net                     > Check that the default net (embedded with nnue=yes) is present" && \
 	echo "strip                   > Strip executable" && \
 	echo "install                 > Install executable" && \
 	echo "clean                   > Clean up" && \
@@ -1256,11 +1251,17 @@ universalclean:
 	@rm -f universal/network_dump.inc
 
 # evaluation network (nnue)
+NNUE_DEFAULT_NET := $(shell grep -oE 'platoo-[0-9a-f]+\.nnue' $(CURDIR)/evaluate.h | head -1)
+
 net:
 ifeq ($(nnue),no)
 	@echo "nnue=no: classical Makruk eval, no network needed"
 else
-	@echo "nnue=yes: no network is embedded or downloaded; set the UCI option EvalFile to an platoo-*.nnue file"
+	@if [ -f "$(NNUE_DEFAULT_NET)" ]; then \
+		echo "nnue=yes: embedding the default net $(NNUE_DEFAULT_NET)"; \
+	else \
+		echo "nnue=yes: default net $(NNUE_DEFAULT_NET) is missing (it ships with the source)"; exit 1; \
+	fi
 endif
 
 format:

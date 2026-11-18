@@ -15,11 +15,13 @@
 Platoo คือเอนจินหมากรุกไทยที่ใช้โปรโตคอล UCI ยึดตาม**กติกาการแข่งขันหมากรุกไทย พ.ศ. ๒๕๖๙** อย่างเคร่งครัด ทั้งการนับศักดิ์กระดาน นับศักดิ์หมาก และการเสมอจากการเดินซ้ำ ตัวเอนจิน hard fork มาจาก [Stockfish 19][stockfish-link] โดยตรง และปรับแก้เฉพาะส่วนที่จำเป็นสำหรับหมากรุกไทยเท่านั้น
 
 - **กติกา:** ดูรายละเอียดได้ที่ [`makruk/docs/MAKRUK_RULES.md`](makruk/docs/MAKRUK_RULES.md) (ภาษาอังกฤษ) ระบบสร้างตาเดินผ่านการตรวจสอบเทียบกับ Fairy-Stockfish (`perft`) ส่วนการนับศักดิ์และการตัดสินเสมอจะยึดตามกติกาของไทยเป็นหลักในจุดที่ต่างออกไป
-- **การประเมินตำแหน่ง:** ค่าเริ่มต้นใช้ระบบประเมินผลแบบดั้งเดิม (classical evaluation) ที่เขียนกฎขึ้นสำหรับหมากรุกไทยโดยเฉพาะ นอกจากนี้ยังรองรับการโหลดไฟล์โครงข่ายประสาทเทียม (NNUE) ของหมากรุกไทยได้ (ดูหัวข้อ [โครงข่ายประสาทเทียม](#nnue)) ทั้งนี้ โค้ดชุดนี้ไม่ได้แนบไฟล์น้ำหนักของโครงข่ายมาให้ และไม่จำเป็นต้องมีก็ใช้งานได้ทันที
+- **การประเมินตำแหน่ง:** ค่าเริ่มต้นใช้โครงข่ายประสาทเทียม (NNUE) ของหมากรุกไทย พร้อม NNUE รุ่นที่ 0 ของเรา (`platoo-a7384e600e60.nnue`) ฝังอยู่ในไฟล์โปรแกรม ไม่ต้องดาวน์โหลดหรือตั้ง `EvalFile` เพิ่ม (ดูหัวข้อ [โครงข่ายประสาทเทียม](#nnue)) ถ้าคอมไพล์ด้วย `nnue=no` จะได้ระบบประเมินผลแบบดั้งเดิม (classical evaluation) ที่เขียนกฎขึ้นสำหรับหมากรุกไทยโดยเฉพาะแทน
 - **การค้นหาตาเดิน:** ใช้ระบบค้นหาตาเดินของ Stockfish ร่วมกับระบบสร้างตาเดินหมากรุกไทย การตรวจจับการเสมอที่คำนึงถึงการนับศักดิ์ และการบริหารเวลาที่จูนมาให้เหมาะกับจังหวะเกมหมากรุกไทย
 
-> [!CAUTION]
-> **ความเก่ง:** repository นี้ไม่มีไฟล์ NNUE จึงเล่นด้วยการประเมินแบบ classical อย่างเดียว เป็นเอนจินตัวเดียวกับระดับ*ง่าย*และ*ปานกลาง*ที่ [play.platoomakruk.in.th](https://play.platoomakruk.in.th) (บนเว็บจำกัดจำนวนโหนดและสุ่มเลือกตาเดินเพิ่ม) ส่วนระดับ*โปร*และ*โปรแม็กซ์*ใช้ NNUE ของเรา (v8) ซึ่งไม่ได้เผยแพร่ และเก่งกว่ามาก
+> [!NOTE]
+> **ความเก่งของ Platoo 1.0 (NNUE Gen0):** ทดสอบกับ **Fairy-Stockfish 14** ที่เวลา **10+0.1** (ฝ่ายละ 10 วินาที บวกเพิ่ม 0.1 วินาทีทุกตาที่เดิน) ตามกติกา 2569 รวม **2,000 เกม** Platoo **ชนะ 532 เสมอ 1,467 แพ้ 1** ได้คะแนน 63.3% หรือเก่งกว่าประมาณ **+94 Elo** (แบ่งเล่น 2 รอบ รอบละ 1,000 เกม ได้ผลใกล้กัน: +96 และ +93 Elo)
+>
+> ระบบประเมินแบบ classical (`nnue=no`) เป็นเอนจินตัวเดียวกับระดับ *ง่าย* และ *ปานกลาง* ที่ [play.platoomakruk.in.th](https://play.platoomakruk.in.th) ส่วนระดับ *โปร* และ *โปรแม็กซ์* ใช้ NNUE รุ่นใหม่กว่า (Gen9) ซึ่งไม่ได้เผยแพร่
 
 ## จุดต่างสำคัญที่ทำให้ Platoo เหนือกว่าเอนจินรุ่นก่อน
 
@@ -72,11 +74,11 @@ go movetime 1000
 [**Cute Makruk**](https://github.com/kiraro33/cutemakruk) คือโปรแกรมกระดานและเครื่องมือจัดการแข่งขันอย่างเป็นทางการของ Platoo พัฒนาต่อจาก Cute Chess สำหรับหมากรุกไทยโดยเฉพาะ และตัดสินผลตาม **กติกาของสมาคมฯ พ.ศ. 2569** ในตัว: นับศักดิ์กระดาน นับศักดิ์หมาก ตำแหน่งซ้ำ 3 ครั้ง และขุนต่อขุน จบเกมได้เอง พร้อมแสดงการนับใต้นาฬิกา หน้าต่างโปรแกรมเป็นภาษาไทยเป็นค่าเริ่มต้น (เลือกภาษาอังกฤษได้)
 
 - **ดาวน์โหลด:** [Cute Makruk releases](https://github.com/kiraro33/cutemakruk/releases) (Windows: โปรแกรมกระดานและบรรทัดคำสั่ง, Linux: บรรทัดคำสั่ง)
-- **เพิ่ม Platoo:** เกม > เกมใหม่ > *เพิ่มเอนจิน...* แล้วเลือก `platoo.exe` ในหน้าตั้งค่าเอนจินจะมีช่อง *ไฟล์ net (EvalFile)* สำหรับ[โครงข่ายประสาทเทียม](#nnue) และ *ตารางหมากจบ (TBPath)* สำหรับ[ฐานข้อมูลเผด็จหมาก](#egtb)
+- **เพิ่ม Platoo:** เกม > เกมใหม่ > *เพิ่มเอนจิน...* แล้วเลือก `platoo.exe` ในหน้าตั้งค่าเอนจินจะมีช่อง *ไฟล์ NNUE (EvalFile)* สำหรับ[โครงข่ายประสาทเทียม](#nnue) และ *ตารางหมากจบ (TBPath)* สำหรับ[ฐานข้อมูลเผด็จหมาก](#egtb)
 - **แข่งเอนจิน** ด้วยโปรแกรมบรรทัดคำสั่ง `cutemakruk` (ตัวเลือกเหมือน cutechess-cli):
 
 ```
-cutemakruk -engine name=Platoo cmd=platoo.exe "option.EvalFile=<net>.nnue" -engine name=Other cmd=other.exe -each proto=uci tc=10+0.1 "option.Move Overhead=100" -games 2 -rounds 100 -repeat -maxmoves 400 -pgnout games.pgn
+cutemakruk -engine name=Platoo cmd=platoo.exe -engine name=Other cmd=other.exe -each proto=uci tc=10+0.1 "option.Move Overhead=100" -games 2 -rounds 100 -repeat -maxmoves 400 -pgnout games.pgn
 ```
 
 ## การคอมไพล์ (build)
@@ -84,11 +86,14 @@ cutemakruk -engine name=Platoo cmd=platoo.exe "option.EvalFile=<net>.nnue" -engi
 ต้องติดตั้ง `make` และคอมไพเลอร์ C++17 (GCC หรือ Clang) ถ้าใช้ Windows ให้รันผ่าน [MSYS2](https://www.msys2.org/) (หน้าต่าง MinGW64) จากนั้นเข้าไปที่โฟลเดอร์ `src/` แล้วสั่ง:
 
 ```
-make -j profile-build    # ไฟล์ไบนารีที่เร็วที่สุด (profile-guided)
+make -j profile-build    # ไฟล์ไบนารีที่เร็วที่สุด (profile-guided) แบบ NNUE พร้อม NNUE ในตัว
 make -j build            # build แบบปกติ (ใช้เมื่อ profile-build ไม่ผ่าน)
 ```
 
-ทดสอบด้วยคำสั่ง `./platoo bench` (บน Windows ใช้ `platoo.exe bench`) ถ้าขึ้น `Nodes searched: 1949398` แสดงว่าพร้อมใช้งาน
+ทดสอบด้วยคำสั่ง `./platoo bench` (บน Windows ใช้ `platoo.exe bench`) ถ้าขึ้น `Nodes searched: 1833190` แสดงว่าพร้อมใช้งาน (ถ้าคอมไพล์ด้วย `nnue=no` จะได้ `1949398`)
+
+- แบบ NNUE ยังไม่รองรับ ARCH แบบ AVX-512 ถ้าเครื่องมี AVX-512 ให้ใส่ `ARCH=x86-64-avxvnni` หรือ `ARCH=x86-64-bmi2` (ค่าเริ่มต้น `ARCH=native` จะหยุดพร้อมข้อความแจ้ง)
+- `make -j profile-build nnue=no` คอมไพล์แบบ classical (ไม่ใช้ NNUE) เมื่อสลับระหว่าง `nnue=yes` กับ `nnue=no` ให้สั่ง `make objclean` ก่อน
 
 <a id="egtb"></a>
 
@@ -109,27 +114,19 @@ setoption name TBPath value <โฟลเดอร์>      (หลายโฟ�
 
 ## โครงข่ายประสาทเทียม (NNUE)
 
-ถ้าคอมไพล์ด้วย `nnue=yes` เอนจินจะประเมินกระดานด้วยโมเดลหมากรุกไทยชื่อ **MKNNv1** ซึ่งนำโครงสร้าง SFNNv16 ของ Stockfish 19 มาปรับฟีเจอร์การคุกคามให้เข้ากับหมากไทย และใช้เลเยอร์แรกขนาด 512
+เอนจินประเมินกระดานด้วยโมเดลหมากรุกไทยชื่อ **MKNNv1** ซึ่งนำโครงสร้าง SFNNv16 ของ Stockfish 19 มาปรับฟีเจอร์การคุกคามให้เข้ากับหมากไทย และใช้เลเยอร์แรกขนาด 512 ดูโครงสร้าง ดัชนีฟีเจอร์ รูปแบบไฟล์ และวิธีเทรนโมเดลได้ที่ [`makruk/docs/NNUE_ARCHITECTURE.md`](makruk/docs/NNUE_ARCHITECTURE.md) (ภาษาอังกฤษ)
 
-เอนจินไม่ได้แถมไฟล์โมเดลมาให้ ต้องเตรียมไฟล์ `platoo-<sha12>.nnue` ของตัวเอง แล้วโหลดด้วยคำสั่ง `setoption name EvalFile value <path>` (ไฟล์ NNUE ของ Fairy-Stockfish และของหมากรุกสากลใช้ไม่ได้) ดูโครงสร้าง ดัชนีฟีเจอร์ รูปแบบไฟล์ และวิธีเทรนโมเดลได้ที่ [`makruk/docs/NNUE_ARCHITECTURE.md`](makruk/docs/NNUE_ARCHITECTURE.md) (ภาษาอังกฤษ)
+**NNUE ในตัว:** [`src/platoo-a7384e600e60.nnue`](src/platoo-a7384e600e60.nnue) (32 MB) คือ NNUE รุ่นที่ 0 ของเรา คำสั่ง `make` จะฝัง NNUE นี้ไว้ในไฟล์โปรแกรม `platoo.exe` จึงใช้งานได้ทันทีโดยไม่ต้องมีไฟล์อื่น (เมื่อเริ่มคิดครั้งแรก เอนจินจะแสดง `info string NNUE evaluation using platoo-a7384e600e60.nnue`) NNUE นี้เทรนจากตำแหน่งหมากรุกไทยราว 200 ล้านตำแหน่ง
 
-คอมไพล์แบบ NNUE (ต้องบอกไฟล์ net ด้วย `EVALFILE` เพราะ `profile-build` จะรัน `bench` กับ net นั้นเพื่อปรับความเร็ว):
-
-```
-cd src
-make objclean                                                     # เมื่อเคยคอมไพล์แบบ nnue=no มาก่อน
-make -j profile-build nnue=yes EVALFILE=/path/to/platoo-<sha12>.nnue
-```
-
-แล้วโหลดไฟล์ net (ไฟล์เดียว) ทุกครั้งที่เปิดเอนจิน:
+ถ้าต้องการใช้ NNUE MKNNv1 ตัวอื่น (`platoo-<sha12>.nnue`) ให้โหลดตอนเปิดเอนจิน (ไฟล์ NNUE ของ Fairy-Stockfish และของหมากรุกสากลใช้ไม่ได้):
 
 ```
 setoption name EvalFile value /path/to/platoo-<sha12>.nnue
 isready
 ```
 
-- `nnue=yes` ยังไม่รองรับ ARCH แบบ AVX-512 ให้ใช้ `ARCH=x86-64-avxvnni` หรือ `ARCH=x86-64-bmi2`
-- ใน [Cute Makruk](#cute-makruk) ใช้ช่อง *ไฟล์ net (EvalFile)* ในหน้าตั้งค่าเอนจินแทนได้
+- ใน [Cute Makruk](#cute-makruk) ใช้ช่อง *ไฟล์ NNUE (EvalFile)* ในหน้าตั้งค่าเอนจินแทนได้
+- `make profile-build EVALFILE=/path/to/platoo-<sha12>.nnue` จะใช้ NNUE นั้นรัน bench ตอน profile แทน NNUE ในตัว (NNUE ที่ฝังในโปรแกรมยังเป็น NNUE ในตัวเหมือนเดิม)
 
 ```mermaid
 flowchart LR
@@ -157,7 +154,7 @@ flowchart LR
 
 โฟลเดอร์ `makruk/tests/` เก็บชุดตำแหน่งทดสอบ `perft`, ชุดเปิดหมาก และชุดทดสอบกติกา (`makruk/tools/perft_diff.py`, `makruk/tools/rule_tests.py`) การเทียบค่า `perft` ต้องมีไฟล์ไบนารีของ Fairy-Stockfish โดยตั้งตัวแปร `MAKRUK_EXTERNAL` ให้ชี้ไปยังโฟลเดอร์ที่เก็บไฟล์นั้น
 
-**การแข่งและการทดสอบความแข็ง** ของ Platoo (SPRT, net กับ net, แข่งกับ Fairy-Stockfish) ทั้งหมดเล่นด้วยโปรแกรมบรรทัดคำสั่งของ [Cute Makruk](#cute-makruk) ซึ่งตัดสินผลตามกติกา 2569 ในตัว คะแนนจึงไม่ต้องนำมาตัดสินใหม่ภายหลัง และโค้ดกติกาของ Cute Makruk ผ่านชุดทดสอบกติกา 196 กรณีชุดเดียวกัน และการตรวจกับเกมสุ่มหลายพันเกม
+**การแข่งและการทดสอบความแข็ง** ของ Platoo (SPRT, NNUE กับ NNUE, แข่งกับ Fairy-Stockfish) ทั้งหมดเล่นด้วยโปรแกรม CLI [Cute Makruk](#cute-makruk) ซึ่งตัดสินผลตามกติกา 2569 ในตัว คะแนนจึงไม่ต้องนำมาตัดสินใหม่ภายหลัง และโค้ดกติกาของ Cute Makruk ผ่านชุดทดสอบกติกา 196 กรณีชุดเดียวกัน และการตรวจกับเกมสุ่มหลายพันเกม
 
 ## เงื่อนไขการใช้งาน
 
@@ -166,7 +163,7 @@ Platoo เป็นซอฟต์แวร์เสรี เผยแพร่
 ## กิตติกรรมประกาศ
 
 - **Stockfish** และทีมผู้พัฒนา ([AUTHORS](AUTHORS)): ระบบค้นหาตาเดินและโค้ดส่วนใหญ่ของ Platoo มาจากผลงานของทีมนี้ ดูเพิ่มเติมได้ที่ [stockfishchess.org][stockfish-link]
-- **Fairy-Stockfish** โดย Fabian Fichter และผู้ร่วมพัฒนา (GPL v3): ต้นแบบอ้างอิงสำหรับระบบสร้างตาเดินหมากรุกไทย
+- **Fairy-Stockfish** โดย Fabian Fichter และผู้ร่วมพัฒนา (GPL v3): ต้นแบบอ้างอิงสำหรับระบบสร้างตาเดินหมากรุกไทย และคู่แข่งในการทดสอบความแข็ง
 - **Cute Chess** โดย Ilari Pihlajisto, Arto Jonsson และผู้ร่วมพัฒนา (GPL v3): ต้นแบบของ [Cute Makruk](https://github.com/kiraro33/cutemakruk) โปรแกรมกระดานและเครื่องมือแข่งของ Platoo
 
 [stockfish-link]: https://stockfishchess.org
