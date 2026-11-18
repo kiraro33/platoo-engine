@@ -59,11 +59,15 @@ jobs:
           msystem: mingw64
           install: mingw-w64-x86_64-gcc make git
 
-      - name: Install GCC 15
+      # Ubuntu 22.04's own GCC 12 (no PPA): the binaries then run on glibc 2.35+.
+      - name: Install GCC 12
         if: matrix.os_name == 'linux'
-        uses: egor-tensin/setup-gcc@a2861a8b8538f49cf2850980acccf6b05a1b2ae4 # v2.0
-        with:
-          version: 15
+        shell: bash
+        run: |
+          if ! command -v g++-12 >/dev/null; then
+            sudo apt-get update && sudo apt-get install -y g++-12
+          fi
+          g++-12 --version | head -1
 
       - name: Build (Windows)
         if: matrix.os_name == 'windows'
@@ -82,7 +86,7 @@ jobs:
           RUN=""
           if [ "${{ matrix.sde }}" = "true" ]; then RUN="$SDE_DIR/sde -adl --"; fi
           echo "RUN=$RUN" >> "$GITHUB_ENV"
-          make -j4 -C src profile-build ARCH=${{ matrix.arch }} RUN_PREFIX="$RUN"
+          make -j4 -C src profile-build ARCH=${{ matrix.arch }} CXX=g++-12 RUN_PREFIX="$RUN"
           strip src/platoo
 
       - name: Check bench and engine name
