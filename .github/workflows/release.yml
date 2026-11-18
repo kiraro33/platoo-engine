@@ -1,0 +1,126 @@
+name: Release binaries
+
+# Builds Platoo for Windows and Linux (x86-64-avxvnni and x86-64-bmi2) with the
+# built-in net, checks the bench, and attaches the binaries to the release.
+# Run it by hand (Actions > Release binaries > Run workflow) to get the binaries
+# as workflow artifacts only.
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: ${{ matrix.os_name }} ${{ matrix.arch }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os_name: windows, runner: windows-2022, arch: x86-64-avxvnni, sde: true }
+          - { os_name: windows, runner: windows-2022, arch: x86-64-bmi2, sde: false }
+          - { os_name: linux, runner: ubuntu-22.04, arch: x86-64-avxvnni, sde: true }
+          - { os_name: linux, runner: ubuntu-22.04, arch: x86-64-bmi2, sde: false }
+    env:
+      BENCH_REF: 1833190
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Release name
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "release" ]; then
+            ver="${{ github.event.release.tag_name }}"; ver="${ver#v}"
+          else
+            ver="dev-$(git rev-parse --short=8 HEAD)"
+          fi
+          ext=""; [ "${{ matrix.os_name }}" = "windows" ] && ext=".exe"
+          echo "ASSET=platoo-${ver}-${{ matrix.os_name }}-${{ matrix.arch }}${ext}" >> "$GITHUB_ENV"
+          echo "EXT=${ext}" >> "$GITHUB_ENV"
+
+      # GitHub's machines have no AVX-VNNI, so the avxvnni build runs its
+      # profile bench and the bench check under Intel SDE (Alder Lake).
+      - name: Download SDE package
+        if: matrix.sde
+        uses: petarpetrovt/setup-sde@31aa4a8e85e109bef00f1d838613fcc6ec421271 # v5.0
+        with:
+          environmentVariableName: SDE_DIR
+          sdeVersion: 9.58.0
+
+      - name: Setup msys and install required packages
+        if: matrix.os_name == 'windows'
+        uses: msys2/setup-msys2@e9898307ac31d1a803454791be09ab9973336e1c # v2.31.1
+        with:
+          msystem: mingw64
+          install: mingw-w64-x86_64-gcc make git
+
+      - name: Install GCC 15
+        if: matrix.os_name == 'linux'
+        uses: egor-tensin/setup-gcc@a2861a8b8538f49cf2850980acccf6b05a1b2ae4 # v2.0
+        with:
+          version: 15
+
+      - name: Build (Windows)
+        if: matrix.os_name == 'windows'
+        shell: msys2 {0}
+        run: |
+          RUN=""
+          if [ "${{ matrix.sde }}" = "true" ]; then RUN="$(cygpath "$SDE_DIR")/sde.exe -adl --"; fi
+          echo "RUN=$RUN" >> "$GITHUB_ENV"
+          make -j4 -C src profile-build ARCH=${{ matrix.arch }} COMP=mingw RUN_PREFIX="$RUN"
+          strip src/platoo.exe
+
+      - name: Build (Linux)
+        if: matrix.os_name == 'linux'
+        shell: bash
+        run: |
+          RUN=""
+          if [ "${{ matrix.sde }}" = "true" ]; then RUN="$SDE_DIR/sde -adl --"; fi
+          echo "RUN=$RUN" >> "$GITHUB_ENV"
+          make -j4 -C src profile-build ARCH=${{ matrix.arch }} RUN_PREFIX="$RUN"
+          strip src/platoo
+
+      - name: Check bench and engine name
+        shell: bash
+        run: |
+          cd src
+          out=$($RUN ./platoo${EXT} bench 2>&1 | tr -d '\r')
+          nodes=$(echo "$out" | grep "Nodes searched" | awk '{print $4}')
+          echo "bench: $nodes (expected $BENCH_REF)"
+          [ "$nodes" = "$BENCH_REF" ]
+          printf 'uci\nquit\n' | $RUN ./platoo${EXT} | tr -d '\r' | grep -x 'id author Kiraro33 (O.T.)'
+          mv platoo${EXT} "../$ASSET"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ${{ env.ASSET }}
+          path: ${{ env.ASSET }}
+
+  attach:
+    name: Attach to release
+    if: github.event_name == 'release'
+    needs: build
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Attach binaries and checksums
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          cd dist
+          sha256sum platoo-* > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+          gh release upload "$TAG" platoo-* SHA256SUMS.txt --clobber -R "$GITHUB_REPOSITORY"

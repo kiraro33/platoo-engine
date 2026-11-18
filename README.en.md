@@ -20,14 +20,17 @@ Platoo is a UCI engine for **Makruk** under the **Thai association rules 2569**
 - **Rules:** [`makruk/docs/MAKRUK_RULES.md`](makruk/docs/MAKRUK_RULES.md). Move generation
   is checked against Fairy-Stockfish (perft); counting and draws follow the Thai rules where
   they differ from Fairy-Stockfish.
-- **Evaluation:** the default build uses the **classical (hand-written) Makruk evaluation**.
-  Platoo can also load a Makruk NNUE (see [Neural network](#neural-network)); no network
-  weights are included in this repository, and none are needed.
+- **Evaluation:** the default build uses a **Makruk NNUE** with our generation-0 net
+  (`platoo-a7384e600e60.nnue`) built into the binary; no download or `EvalFile` is needed (see
+  [Neural network](#neural-network)). `nnue=no` builds the **classical (hand-written) Makruk
+  evaluation** instead.
 - **Search:** Stockfish's search, with Makruk move generation, counting-aware draw
   detection and Makruk-tuned time management.
 
-> [!CAUTION]
-> **Strength:** This repository ships no NNUE net, so it plays with the classical evaluation only. That is the same engine as the *Easy* and *Medium* levels at [play.platoomakruk.in.th](https://play.platoomakruk.in.th), which add node limits and random move choice. *Pro* and *Pro Max* use our NNUE net (v8), which is not released, and are much stronger.
+> [!NOTE]
+> **Strength of Platoo 1.0 (NNUE gen 0):** against **Fairy-Stockfish 14** at **10+0.1** (10 seconds each, plus 0.1 seconds per move) under the 2569 rules, **2,000 games**: Platoo **won 532, drew 1,467, lost 1**, a 63.3% score, or about **+94 Elo** (played as two runs of 1,000 games with close results: +96 and +93 Elo).
+>
+> The classical evaluation (`nnue=no`) is the engine of the *Easy* and *Medium* levels at [play.platoomakruk.in.th](https://play.platoomakruk.in.th). *Pro* and *Pro Max* use a newer NNUE (Gen9), which is not released.
 
 ## What is different
 
@@ -58,8 +61,8 @@ generation. Platoo has a narrower goal: Makruk only, as close to current Stockfi
    kept (a Met never attacks straight back), Met → Khon is left out (the Khon always attacks
    the Met back diagonally), and two Khon of the same colour are not treated as attacking each
    other back (a Khon steps forward but not backward). The Bia-pair features (`PP_3Wide`,
-   adjacent files) are kept for Bia chains, rams and doubled or isolated Bia. No net is
-   included; see [Neural network](#neural-network).
+   adjacent files) are kept for Bia chains, rams and doubled or isolated Bia. See
+   [Neural network](#neural-network).
 
 4. **Strict output, lenient input.** Platoo always writes a promotion with the `m` suffix
    (`e5e6m`), as Fairy-Stockfish and cutechess require. It accepts `e5e6m`, `e5e6M` and `e5e6`,
@@ -117,7 +120,7 @@ by themselves, and the running count is shown under the clocks. The GUI is in Th
 - **Engine matches** with the command-line tool `cutemakruk` (same options as cutechess-cli):
 
 ```
-cutemakruk -engine name=Platoo cmd=platoo.exe "option.EvalFile=<net>.nnue" -engine name=Other cmd=other.exe -each proto=uci tc=10+0.1 "option.Move Overhead=100" -games 2 -rounds 100 -repeat -maxmoves 400 -pgnout games.pgn
+cutemakruk -engine name=Platoo cmd=platoo.exe -engine name=Other cmd=other.exe -each proto=uci tc=10+0.1 "option.Move Overhead=100" -games 2 -rounds 100 -repeat -maxmoves 400 -pgnout games.pgn
 ```
 
 ## Compiling
@@ -126,11 +129,17 @@ You need `make` and a C++17 compiler (GCC or Clang). On Windows use
 [MSYS2](https://www.msys2.org/) (MinGW64 shell). From `src/`:
 
 ```
-make -j profile-build    # fastest binary (profile-guided)
+make -j profile-build    # fastest binary (profile-guided), NNUE with the built-in net
 make -j build            # plain build, if profile-build fails
 ```
 
-Check the build with `./platoo bench` (`platoo.exe bench` on Windows): it should print `Nodes searched: 1949398`.
+Check the build with `./platoo bench` (`platoo.exe bench` on Windows): it should print
+`Nodes searched: 1833190` (with `nnue=no`: `1949398`).
+
+- The NNUE build does not support the AVX-512 ARCHes yet. On an AVX-512 machine pass
+  `ARCH=x86-64-avxvnni` or `ARCH=x86-64-bmi2` (the default `ARCH=native` stops with an error).
+- `make -j profile-build nnue=no` builds the classical evaluation (no net). Run
+  `make objclean` first when you switch between `nnue=yes` and `nnue=no`.
 
 ## Endgame tables
 
@@ -155,31 +164,26 @@ With the tables Platoo plays these endings perfectly, also inside the search, an
 
 ## Neural network
 
-With `nnue=yes` Platoo evaluates with a Makruk NNUE, **MKNNv1**: Stockfish 19's SFNNv16
-layout with Makruk threat features and a 512-wide first layer. No net is shipped; you need
-your own `platoo-<sha12>.nnue` file (`setoption name EvalFile value <path>`). Architecture,
-feature indices, file format and how to train a compatible net:
-[`makruk/docs/NNUE_ARCHITECTURE.md`](makruk/docs/NNUE_ARCHITECTURE.md).
+Platoo evaluates with a Makruk NNUE, **MKNNv1**: Stockfish 19's SFNNv16 layout with Makruk
+threat features and a 512-wide first layer. Architecture, feature indices, file format and how
+to train a compatible net: [`makruk/docs/NNUE_ARCHITECTURE.md`](makruk/docs/NNUE_ARCHITECTURE.md).
 
-Build with NNUE (`EVALFILE` is needed because `profile-build` runs `bench` with that net):
+**Built-in net:** [`src/platoo-a7384e600e60.nnue`](src/platoo-a7384e600e60.nnue) (32 MB), our generation-0 net. `make` embeds it in
+the binary, so `platoo.exe` works on its own; the engine prints
+`info string NNUE evaluation using platoo-a7384e600e60.nnue` at the first search. It was trained on about
+200 million Makruk positions. No weights of another net are in it.
 
-```
-cd src
-make objclean                                                     # when switching from nnue=no
-make -j profile-build nnue=yes EVALFILE=/path/to/platoo-<sha12>.nnue
-```
-
-Then load the net (one file) each time the engine starts:
+To use another MKNNv1 net (`platoo-<sha12>.nnue`), load it at start-up:
 
 ```
 setoption name EvalFile value /path/to/platoo-<sha12>.nnue
 isready
 ```
 
-- `nnue=yes` does not support the AVX-512 ARCHes yet; use `ARCH=x86-64-avxvnni` or
-  `ARCH=x86-64-bmi2`.
 - In [Cute Makruk](#cute-makruk-the-official-gui), use the *Net file (EvalFile)* field in the
   engine settings instead.
+- `make profile-build EVALFILE=/path/to/platoo-<sha12>.nnue` runs the profile bench with that
+  net instead of the built-in one (the built-in net is still the one embedded).
 
 ```mermaid
 flowchart LR
@@ -227,7 +231,7 @@ full source code (including your changes) available under the GPL v3.
 - **Stockfish** and the Stockfish developers ([AUTHORS](AUTHORS)): Platoo's search and most
   of its code are theirs. Visit [stockfishchess.org][stockfish-link].
 - **Fairy-Stockfish** by Fabian Fichter and contributors (GPL v3): our reference for Makruk
-  move generation.
+  move generation, and the opponent in our strength tests.
 - **Cute Chess** by Ilari Pihlajisto, Arto Jonsson and contributors (GPL v3): the base of
   [Cute Makruk](https://github.com/kiraro33/cutemakruk), Platoo's GUI and match tool.
 

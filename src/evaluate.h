@@ -30,10 +30,10 @@ class Position;
 
 namespace Eval {
 
-// Platoo nets are named platoo-[SHA256 first 12 digits].nnue. No net is embedded
-// or downloaded: this is a placeholder, and nnue=yes needs the UCI option EvalFile.
+// Platoo nets are named platoo-[SHA256 first 12 digits].nnue. With nnue=yes the
+// default net is embedded in the binary; the UCI option EvalFile can load another.
 // Do not change the name of the macro or the location where it is defined.
-#define EvalFileDefaultName "platoo-000000000000.nnue"
+#define EvalFileDefaultName "platoo-a7384e600e60.nnue"
 
 namespace NNUE {
 class Network;
