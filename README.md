@@ -55,7 +55,7 @@ Platoo คือเอนจินหมากรุกไทยที่ใช�
 
 ## การใช้งาน
 
-Platoo สื่อสารผ่านโปรโตคอล UCI เหมือน Stockfish สามารถใช้กับโปรแกรมกระดาน (GUI) หรือเครื่องมือใดก็ได้ที่รองรับหมากรุกไทย เช่น cutechess โดยใส่พารามิเตอร์ `-variant makruk`:
+Platoo สื่อสารผ่านโปรโตคอล UCI เหมือน Stockfish โปรแกรมกระดาน (GUI) อย่างเป็นทางการคือ [**Cute Makruk**](#cute-makruk) และยังใช้กับโปรแกรมหรือเครื่องมืออื่นที่รองรับเอนจินหมากรุกไทยแบบ UCI ได้ ตัวอย่างการสั่งงานโดยตรง:
 
 ```
 uci
@@ -65,6 +65,19 @@ go movetime 1000
 ```
 
 ตัวเลือก (options) ที่แนะนำให้ปรับ: `Threads`, `Hash`, `MultiPV`, `Move Overhead`, `UCI_ShowWDL`
+
+<a id="cute-makruk"></a>
+## Cute Makruk: โปรแกรมกระดานอย่างเป็นทางการ
+
+[**Cute Makruk**](https://github.com/kiraro33/cutemakruk) คือโปรแกรมกระดานและเครื่องมือจัดการแข่งขันอย่างเป็นทางการของ Platoo พัฒนาต่อจาก Cute Chess สำหรับหมากรุกไทยโดยเฉพาะ และตัดสินผลตาม **กติกาของสมาคมฯ พ.ศ. 2569** ในตัว: นับศักดิ์กระดาน นับศักดิ์หมาก ตำแหน่งซ้ำ 3 ครั้ง และขุนต่อขุน จบเกมได้เอง พร้อมแสดงการนับใต้นาฬิกา หน้าต่างโปรแกรมเป็นภาษาไทยเป็นค่าเริ่มต้น (เลือกภาษาอังกฤษได้)
+
+- **ดาวน์โหลด:** [Cute Makruk releases](https://github.com/kiraro33/cutemakruk/releases) (Windows: โปรแกรมกระดานและบรรทัดคำสั่ง, Linux: บรรทัดคำสั่ง)
+- **เพิ่ม Platoo:** เกม > เกมใหม่ > *เพิ่มเอนจิน...* แล้วเลือก `platoo.exe` ในหน้าตั้งค่าเอนจินจะมีช่อง *ไฟล์ net (EvalFile)* สำหรับ[โครงข่ายประสาทเทียม](#nnue) และ *ตารางหมากจบ (TBPath)* สำหรับ[ฐานข้อมูลเผด็จหมาก](#egtb)
+- **แข่งเอนจิน** ด้วยโปรแกรมบรรทัดคำสั่ง `cutemakruk` (ตัวเลือกเหมือน cutechess-cli):
+
+```
+cutemakruk -engine name=Platoo cmd=platoo.exe "option.EvalFile=<net>.nnue" -engine name=Other cmd=other.exe -each proto=uci tc=10+0.1 "option.Move Overhead=100" -games 2 -rounds 100 -repeat -maxmoves 400 -pgnout games.pgn
+```
 
 ## การคอมไพล์ (build)
 
@@ -126,6 +139,8 @@ flowchart LR
 
 โฟลเดอร์ `makruk/tests/` เก็บชุดตำแหน่งทดสอบ `perft`, ชุดเปิดหมาก และชุดทดสอบกติกา (`makruk/tools/perft_diff.py`, `makruk/tools/rule_tests.py`) การเทียบค่า `perft` ต้องมีไฟล์ไบนารีของ Fairy-Stockfish โดยตั้งตัวแปร `MAKRUK_EXTERNAL` ให้ชี้ไปยังโฟลเดอร์ที่เก็บไฟล์นั้น
 
+**การแข่งและการทดสอบความแข็ง** ของ Platoo (SPRT, net กับ net, แข่งกับ Fairy-Stockfish) ทั้งหมดเล่นด้วยโปรแกรมบรรทัดคำสั่งของ [Cute Makruk](#cute-makruk) ซึ่งตัดสินผลตามกติกา 2569 ในตัว คะแนนจึงไม่ต้องนำมาตัดสินใหม่ภายหลัง และโค้ดกติกาของ Cute Makruk ผ่านชุดทดสอบกติกา 196 กรณีชุดเดียวกัน และการตรวจกับเกมสุ่มหลายพันเกม
+
 ## เงื่อนไขการใช้งาน
 
 Platoo เป็นซอฟต์แวร์เสรี เผยแพร่ภายใต้สัญญาอนุญาต [**GNU General Public License version 3**](Copying.txt) (GPL v3) เช่นเดียวกับ Stockfish คุณสามารถนำไปใช้งาน ศึกษา แก้ไข และแจกจ่ายต่อได้ แต่ถ้าแจกจ่ายไฟล์โปรแกรม (binaries) ออกไป ต้องเปิดเผยซอร์สโค้ดฉบับเต็มรวมถึงส่วนที่แก้ไขภายใต้สัญญาอนุญาต GPL v3 ด้วย
@@ -134,5 +149,6 @@ Platoo เป็นซอฟต์แวร์เสรี เผยแพร่
 
 - **Stockfish** และทีมผู้พัฒนา ([AUTHORS](AUTHORS)): ระบบค้นหาตาเดินและโค้ดส่วนใหญ่ของ Platoo มาจากผลงานของทีมนี้ ดูเพิ่มเติมได้ที่ [stockfishchess.org][stockfish-link]
 - **Fairy-Stockfish** โดย Fabian Fichter และผู้ร่วมพัฒนา (GPL v3): ต้นแบบอ้างอิงสำหรับระบบสร้างตาเดินหมากรุกไทย
+- **Cute Chess** โดย Ilari Pihlajisto, Arto Jonsson และผู้ร่วมพัฒนา (GPL v3): ต้นแบบของ [Cute Makruk](https://github.com/kiraro33/cutemakruk) โปรแกรมกระดานและเครื่องมือแข่งของ Platoo
 
 [stockfish-link]: https://stockfishchess.org

@@ -88,8 +88,9 @@ cases in `makruk/tests/rules`.
 
 ## Using Platoo
 
-Platoo speaks UCI, like Stockfish. Use it from any GUI or tool that supports Makruk, for
-example cutechess with `-variant makruk`:
+Platoo speaks UCI, like Stockfish. Its official GUI is
+[**Cute Makruk**](#cute-makruk-the-official-gui); it also works with any other GUI or tool
+that supports Makruk UCI engines. By hand:
 
 ```
 uci
@@ -99,6 +100,25 @@ go movetime 1000
 ```
 
 Useful options: `Threads`, `Hash`, `MultiPV`, `Move Overhead`, `UCI_ShowWDL`.
+
+## Cute Makruk: the official GUI
+
+[**Cute Makruk**](https://github.com/kiraro33/cutemakruk) is the official GUI and match tool
+for Platoo. It is a Makruk-only fork of Cute Chess with the **Thai association rules 2569**
+built in: board's and pieces' honour counting, 3-fold repetition and bare khuns end the game
+by themselves, and the running count is shown under the clocks. The GUI is in Thai by default
+(English selectable).
+
+- **Download:** [Cute Makruk releases](https://github.com/kiraro33/cutemakruk/releases)
+  (Windows: GUI and command line; Linux: command line).
+- **Add Platoo:** New Game > *Add Engine...*, choose `platoo.exe`. The engine settings then show
+  *Net file (EvalFile)* for the [network](#neural-network) and *Endgame tables (TBPath)* for the
+  [endgame tables](#endgame-tables).
+- **Engine matches** with the command-line tool `cutemakruk` (same options as cutechess-cli):
+
+```
+cutemakruk -engine name=Platoo cmd=platoo.exe "option.EvalFile=<net>.nnue" -engine name=Other cmd=other.exe -each proto=uci tc=10+0.1 "option.Move Overhead=100" -games 2 -rounds 100 -repeat -maxmoves 400 -pgnout games.pgn
+```
 
 ## Compiling
 
@@ -170,6 +190,11 @@ board.
 (`makruk/tools/perft_diff.py`, `makruk/tools/rule_tests.py`). The perft comparison needs a
 Fairy-Stockfish binary; point `MAKRUK_EXTERNAL` at the folder that holds it.
 
+**Matches and strength tests** of Platoo (SPRT, net against net, against Fairy-Stockfish) are
+played with the [Cute Makruk](#cute-makruk-the-official-gui) command-line tool. It ends the games
+by the Thai rules 2569 itself, so the scores need no re-judging afterwards. Its rule code is
+checked against the same 196 rule cases and against thousands of random games.
+
 ## Terms of use
 
 Platoo is free software, distributed under the
@@ -183,5 +208,7 @@ full source code (including your changes) available under the GPL v3.
   of its code are theirs. Visit [stockfishchess.org][stockfish-link].
 - **Fairy-Stockfish** by Fabian Fichter and contributors (GPL v3): our reference for Makruk
   move generation.
+- **Cute Chess** by Ilari Pihlajisto, Arto Jonsson and contributors (GPL v3): the base of
+  [Cute Makruk](https://github.com/kiraro33/cutemakruk), Platoo's GUI and match tool.
 
 [stockfish-link]: https://stockfishchess.org
