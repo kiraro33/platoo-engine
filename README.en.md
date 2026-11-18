@@ -161,6 +161,26 @@ your own `platoo-<sha12>.nnue` file (`setoption name EvalFile value <path>`). Ar
 feature indices, file format and how to train a compatible net:
 [`makruk/docs/NNUE_ARCHITECTURE.md`](makruk/docs/NNUE_ARCHITECTURE.md).
 
+Build with NNUE (`EVALFILE` is needed because `profile-build` runs `bench` with that net):
+
+```
+cd src
+make objclean                                                     # when switching from nnue=no
+make -j profile-build nnue=yes EVALFILE=/path/to/platoo-<sha12>.nnue
+```
+
+Then load the net (one file) each time the engine starts:
+
+```
+setoption name EvalFile value /path/to/platoo-<sha12>.nnue
+isready
+```
+
+- `nnue=yes` does not support the AVX-512 ARCHes yet; use `ARCH=x86-64-avxvnni` or
+  `ARCH=x86-64-bmi2`.
+- In [Cute Makruk](#cute-makruk-the-official-gui), use the *Net file (EvalFile)* field in the
+  engine settings instead.
+
 ```mermaid
 flowchart LR
     P["Position<br/>(both sides)"] --> HK["HalfKAv2_hm<br/>22,528"]
