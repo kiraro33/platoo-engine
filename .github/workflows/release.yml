@@ -25,7 +25,7 @@ jobs:
           - { os_name: linux, runner: ubuntu-22.04, arch: x86-64-avxvnni, sde: true }
           - { os_name: linux, runner: ubuntu-22.04, arch: x86-64-bmi2, sde: false }
     env:
-      BENCH_REF: 1833190
+      BENCH_REF: 1850802
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:

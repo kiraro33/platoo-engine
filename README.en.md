@@ -134,7 +134,7 @@ make -j build            # plain build, if profile-build fails
 ```
 
 Check the build with `./platoo bench` (`platoo.exe bench` on Windows): it should print
-`Nodes searched: 1833190` (with `nnue=no`: `1949398`).
+`Nodes searched: 1850802` (with `nnue=no`: `1954971`).
 
 - The NNUE build does not support the AVX-512 ARCHes yet. On an AVX-512 machine pass
   `ARCH=x86-64-avxvnni` or `ARCH=x86-64-bmi2` (the default `ARCH=native` stops with an error).
