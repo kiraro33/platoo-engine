@@ -733,6 +733,12 @@ Value Search::Worker::search(
     // Limit the depth if extensions made it too large
     depth = std::min(depth, MAX_PLY - 1);
 
+    // Past twice the root depth, no move is searched deeper than depth - 1.
+    // Without this, LMR extensions (newDepth + 2) on quiet moves with good history
+    // can keep shuffling lines at constant depth up to MAX_PLY: in Makruk there is
+    // no count while any Bia is on the board, so no 50-move-like rule ends them.
+    const Depth depthCap = ss->ply < 2 * rootDepth ? MAX_PLY - 1 : depth - 1;
+
     // Check if we have an upcoming move that draws by repetition
     if (!rootNode && alpha < VALUE_DRAW + drawValue[pos.side_to_move()]
         && pos.upcoming_repetition(ss->ply))
@@ -1301,7 +1307,7 @@ moves_loop:  // When in check, search starts here
         do_move(pos, move, st, givesCheck, ss);
 
         // Add extension to new depth
-        newDepth += extension;
+        newDepth = std::min(newDepth + extension, depthCap);
 
         // Step 18. Compute and apply late moves reductions/extensions (LMR)
 
@@ -1359,7 +1365,8 @@ moves_loop:  // When in check, search starts here
             // beyond the first move depth.
             // To prevent problems when the max value is less than the min value,
             // std::clamp has been replaced by a more robust implementation.
-            Depth d = std::max(1, std::min(newDepth - r / 1024, newDepth + 2)) + PvNode;
+            Depth d =
+              std::min(std::max(1, std::min(newDepth - r / 1024, newDepth + 2)) + PvNode, depthCap);
 
             ss->reduction = newDepth - d;
             value         = -search<NonPV>(pos, ss + 1, -(alpha + 1), -alpha, d, true);
@@ -1374,7 +1381,7 @@ moves_loop:  // When in check, search starts here
                 const bool doDeeperSearch    = d < newDepth && value > bestValue + 53;
                 const bool doShallowerSearch = value < bestValue + 8;
 
-                newDepth += doDeeperSearch - doShallowerSearch;
+                newDepth = std::min(newDepth + doDeeperSearch - doShallowerSearch, depthCap);
 
                 if (newDepth > d)
                     value = -search<NonPV>(pos, ss + 1, -(alpha + 1), -alpha, newDepth, !cutNode);
