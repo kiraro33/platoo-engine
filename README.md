@@ -90,7 +90,7 @@ make -j profile-build    # ไฟล์ไบนารีที่เร็ว�
 make -j build            # build แบบปกติ (ใช้เมื่อ profile-build ไม่ผ่าน)
 ```
 
-ทดสอบด้วยคำสั่ง `./platoo bench` (บน Windows ใช้ `platoo.exe bench`) ถ้าขึ้น `Nodes searched: 1850802` แสดงว่าพร้อมใช้งาน (ถ้าคอมไพล์ด้วย `nnue=no` จะได้ `1954971`)
+ทดสอบด้วยคำสั่ง `./platoo bench` (บน Windows ใช้ `platoo.exe bench`) ถ้าขึ้น `Nodes searched: 1662473` แสดงว่าพร้อมใช้งาน (ถ้าคอมไพล์ด้วย `nnue=no` จะได้ `1923859`)
 
 - แบบ NNUE ยังไม่รองรับ ARCH แบบ AVX-512 ถ้าเครื่องมี AVX-512 ให้ใส่ `ARCH=x86-64-avxvnni` หรือ `ARCH=x86-64-bmi2` (ค่าเริ่มต้น `ARCH=native` จะหยุดพร้อมข้อความแจ้ง)
 - `make -j profile-build nnue=no` คอมไพล์แบบ classical (ไม่ใช้ NNUE) เมื่อสลับระหว่าง `nnue=yes` กับ `nnue=no` ให้สั่ง `make objclean` ก่อน
