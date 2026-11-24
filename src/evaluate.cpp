@@ -60,14 +60,14 @@ Value Eval::evaluate(const Eval::NNUE::Network&     network,
 
     // Blend optimism and eval with nnue complexity
     int nnueComplexity = std::abs(psqt - positional);
-    optimism += optimism * i64(nnueComplexity) / 476;
-    nnue -= nnue * i64(nnueComplexity) / 18236;
+    optimism += optimism * i64(nnueComplexity) / 328;
+    nnue -= nnue * i64(nnueComplexity) / 23694;
 
-    int material = 534 * pos.count<PAWN>() + pos.non_pawn_material();
-    int v        = nnue + (nnue * i64(material) + optimism * i64(7675)) / 91000;
+    int material = 564 * pos.count<PAWN>() + pos.non_pawn_material();
+    int v        = nnue + (nnue * i64(material) + optimism * i64(8944)) / 91000;
 
     // Damp down the evaluation linearly when approaching the counting draw (R5.9)
-    v -= v * std::max(100 - pos.count_horizon(), 0) / 199;
+    v -= v * std::max(100 - pos.count_horizon(), 0) / 253;
 
     // Guarantee evaluation does not hit the tablebase range
     v = std::clamp(v, VALUE_TB_LOSS_IN_MAX_PLY + 1, VALUE_TB_WIN_IN_MAX_PLY - 1);

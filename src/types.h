@@ -179,11 +179,11 @@ constexpr Value mate_in(int ply) { return VALUE_MATE - ply; }
 constexpr Value mated_in(int ply) { return -VALUE_MATE + ply; }
 
 // Makruk piece values: Bia, Ma, Khon, Rua, Met.
-constexpr Value PawnValue   = 208;
-constexpr Value KnightValue = 781;
-constexpr Value BishopValue = 660;
-constexpr Value RookValue   = 1276;
-constexpr Value QueenValue  = 420;
+constexpr Value PawnValue   = 215;
+constexpr Value KnightValue = 823;
+constexpr Value BishopValue = 628;
+constexpr Value RookValue   = 1464;
+constexpr Value QueenValue  = 402;
 
 
 // clang-format off
