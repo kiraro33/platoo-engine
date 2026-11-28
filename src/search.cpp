@@ -930,8 +930,11 @@ Value Search::Worker::search(
 
     // Step 7. Tablebases probe: exact values right after a capture or
     // a promotion into material the tables cover. Distances beyond the counting
-    // horizon are draws (probe() reads the horizon of this position).
-    if (!rootNode && !excludedMove && pos.count<ALL_PIECES>() <= Tablebases::max_cardinality()
+    // horizon are draws (probe() reads the horizon of this position). With exactly
+    // TB cardinality pieces only from TBProbeDepth on (upstream Syzygy rule).
+    if (!rootNode && !excludedMove && pos.count<ALL_PIECES>() <= Tablebases::cardinality()
+        && (pos.count<ALL_PIECES>() < Tablebases::cardinality()
+            || depth >= Tablebases::probe_depth())
         && (priorCapture || ((ss - 1)->currentMove).type_of() == PROMOTION))
     {
         Tablebases::ProbeResult tb = Tablebases::probe(pos);

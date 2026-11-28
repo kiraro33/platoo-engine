@@ -85,7 +85,7 @@ SRCS = attacks.cpp benchmark.cpp bitboard.cpp evaluate.cpp makruk_eval.cpp main.
 	search.cpp thread.cpp timeman.cpp tt.cpp uci.cpp ucioption.cpp tune.cpp \
 	nnue/nnue_accumulator.cpp nnue/nnue_misc.cpp nnue/nnue_test.cpp nnue/network.cpp \
 	nnue/features/half_ka_v2_hm.cpp nnue/features/full_threats.cpp nnue/features/pp_3wide.cpp \
-	engine.cpp score.cpp memory.cpp tbprobe.cpp
+	engine.cpp score.cpp memory.cpp tbprobe.cpp tbprobe_v1.cpp
 
 OTHER_SRCS = universal/entry_x86.cpp universal/entry_arm64.cpp universal/entry_riscv64.cpp universal/nnue_embed.cpp
 
@@ -138,7 +138,8 @@ VPATH = nnue:nnue/features
 # lasx = yes/no       --- -mlasx             --- Use Loongson Advanced SIMD eXtension
 # relaxedsimd = y/n   --- -mrelaxed-simd     --- Use WebAssembly relaxed SIMD extension
 # nnue = yes/no       --- -DMAKRUK_TEMP_EVAL --- NNUE eval (MKNNv1, embedded net), or the classical Makruk eval
-# tb = yes/no         --- -DMAKRUK_TB        --- Makruk endgame tables (TBPath, .mktbe files); links libzstd
+# tb = yes/no         --- -DMAKRUK_TB        --- Makruk endgame tables (TBPath); links libzstd
+# tbformat = v1/v2    --- -DMAKRUK_TB_V2     --- table format the engine reads: v1 .mktbe (default), v2 .mkts/.mktr
 #
 # Note that Makefile is space sensitive, so when adding new architectures
 # or modifying existing flags, you have to make sure there are no extra spaces
@@ -206,6 +207,7 @@ lasx = no
 relaxedsimd = no
 nnue = yes
 tb = no
+tbformat = v1
 STRIP = strip
 
 ifneq ($(shell which clang-format-20 2> /dev/null),)
@@ -917,6 +919,9 @@ endif
 ifeq ($(tb),yes)
 	CXXFLAGS += -DMAKRUK_TB
 	LDFLAGS += -lzstd
+	ifeq ($(tbformat),v2)
+		CXXFLAGS += -DMAKRUK_TB_V2
+	endif
 endif
 ifeq ($(UNIVERSAL_BUILD),true)
     $(error Universal (macOS lipo) builds are not supported by Platoo yet)
@@ -1303,7 +1308,7 @@ config-sanity: net
 	echo "arm_version: '$(arm_version)'" && \
 	echo "lsx: '$(lsx)'" && \
 	echo "lasx: '$(lasx)'" && \
-	echo "nnue: '$(nnue)'" && \
+	echo "nnue: '$(nnue)'" && 	echo "tb: '$(tb)'" && 	echo "tbformat: '$(tbformat)'" && \
 	echo "target_windows: '$(target_windows)'" && \
 	echo "" && \
 	echo "Flags:" && \
@@ -1339,7 +1344,7 @@ config-sanity: net
 	(test "$(neon)" = "yes" || test "$(neon)" = "no") && \
 	(test "$(lsx)" = "yes" || test "$(lsx)" = "no") && \
 	(test "$(lasx)" = "yes" || test "$(lasx)" = "no") && \
-	(test "$(nnue)" = "yes" || test "$(nnue)" = "no") && \
+	(test "$(nnue)" = "yes" || test "$(nnue)" = "no") && 	(test "$(tb)" = "yes" || test "$(tb)" = "no") && 	(test "$(tbformat)" = "v1" || test "$(tbformat)" = "v2") && \
 	(test "$(comp)" = "gcc" || test "$(comp)" = "icx" || test "$(comp)" = "mingw" || \
 	 test "$(comp)" = "clang" || test "$(comp)" = "armv7a-linux-androideabi16-clang" || \
 	 test "$(comp)" = "aarch64-linux-android21-clang")

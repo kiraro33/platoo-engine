@@ -16,8 +16,10 @@
   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-// Makruk endgame tables: probes the .mktbe files
-// written by mktb (github.com/kiraro33/platoo-egtb; exact values under the rules 2569).
+// Makruk endgame tables: probes the files
+// written by mktb (platoo-egtb; exact values under the rules 2569). One format per
+// build: tbformat=v1 (default) reads .mktbe (tbprobe_v1.cpp), tbformat=v2 reads
+// .mkts / .mktr (tbprobe.cpp).
 
 #ifndef TBPROBE_H_INCLUDED
 #define TBPROBE_H_INCLUDED
@@ -35,7 +37,8 @@ namespace Stockfish::Tablebases {
 
 // Result for the side to move. wdl: 1 win, 0 draw, -1 loss, within the counting
 // horizon of the position. dist: the table distance in plies; with dtm it is the
-// exact distance to mate (pieces' honor tables), otherwise a conversion distance.
+// exact distance to mate (pieces' honor tables), otherwise a conversion distance
+// (v2: 0 with Bia on the board, those tables give WDL to the search).
 struct ProbeResult {
     bool ok   = false;
     int  wdl  = 0;
@@ -50,16 +53,25 @@ std::string init(const std::string& paths);
 // Largest number of pieces (Khuns included) covered; 0 without tables.
 int max_cardinality();
 
-ProbeResult probe(const Position& pos);
+// UCI TBProbeLimit / TBProbeDepth. Positions with fewer pieces than cardinality()
+// = min(TBProbeLimit, max_cardinality()) are probed at any depth, positions with
+// exactly cardinality() pieces from depth TBProbeDepth on (upstream Syzygy rule).
+void set_probe_limit(int n);
+void set_probe_depth(int d);
+int  cardinality();
+int  probe_depth();
 
-// At a root covered by the tables keeps only the best moves by table value
-// (fastest win, any draw, slowest loss) and sets their tbScore. Returns
-// whether the root is in the tables.
+// Reads the tables (v2: capture search for "don't care" entries, makes and unmakes moves)
+ProbeResult probe(Position& pos);
+
+// At a root with at most cardinality() pieces keeps only the best moves by table
+// value (fastest win, any draw, slowest loss; v2 with Bia by DTZ) and sets their
+// tbScore. Returns whether the root is in the tables.
 bool rank_root_moves(Position& pos, Search::RootMoves& rootMoves);
 
 // "info string tb <win|draw|loss> <dist> raw <win|draw|loss> <bia|board|pieces|bare>"
 // for a root in the tables (empty otherwise): lets a GUI or bot handle draw offers.
-std::string root_info(const Position& pos);
+std::string root_info(Position& pos);
 
 }  // namespace Stockfish::Tablebases
 

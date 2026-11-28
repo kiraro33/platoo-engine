@@ -158,6 +158,24 @@ make -j profile-build tb=yes
 setoption name TBPath value <folder>      (several folders: separated by ';')
 ```
 
+The tables come in two formats. An engine reads one of them, chosen at build time with `tbformat`:
+
+| | `tbformat=v1` (default) | `tbformat=v2` |
+|---|---|---|
+| Files | `.mktbe` | `.mkts` / `.mktr` |
+| 5 pieces | 10.5 GB, [`platoo-egtb-5men`](https://huggingface.co/datasets/kiraro33/platoo-egtb-5men) | 4.5 GB, [`platoo-egtb-5men-v2`](https://huggingface.co/datasets/kiraro33/platoo-egtb-5men-v2) |
+| 6 pieces | no | yes (about 690 GB, on request at [`platoo-egtb`](https://github.com/kiraro33/platoo-egtb)) |
+| "Mate in N" with Bia | real distance to mate | plies to the next Bia move or capture |
+
+Both formats give the same win/draw/loss for every position, and the engine plays equally strong with
+either. A `TBPath` holding only the other format loads no tables and the engine says which
+`tbformat` to build with. Changing `tbformat` needs `make objclean` first.
+
+```
+make -j profile-build tb=yes tbformat=v2
+setoption name TBPath value <5-pieces v2>;<6-pieces>
+```
+
 With the tables Platoo plays these endings perfectly, also inside the search, and prints
 `info string tb <win|draw|loss> <plies> ...` when the root position is in the tables. An empty
 `TBPath` (the default) changes nothing: `bench` stays the same.

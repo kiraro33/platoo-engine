@@ -126,11 +126,24 @@ Engine::Engine(std::optional<std::filesystem::path> path) :
 
     options.add("UCI_ShowWDL", Option(false));
 
-    // Makruk endgame tables (.mktbe), directories separated by ';'
+    // Makruk endgame tables (.mktbe v1 or .mkts / .mktr v2 by tbformat),
+    // directories separated by ';'
     options.add(  //
       "TBPath", Option("", [](const Option& o) {
           std::string r = Tablebases::init(std::string(o));
           return r.empty() ? std::nullopt : std::optional<std::string>(r);
+      }));
+
+    options.add(  //
+      "TBProbeLimit", Option(6, 0, 8, [](const Option& o) {
+          Tablebases::set_probe_limit(int(o));
+          return std::nullopt;
+      }));
+
+    options.add(  //
+      "TBProbeDepth", Option(1, 1, 100, [](const Option& o) {
+          Tablebases::set_probe_depth(int(o));
+          return std::nullopt;
       }));
 
 #ifndef MAKRUK_TEMP_EVAL

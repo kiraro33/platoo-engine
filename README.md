@@ -108,6 +108,22 @@ make -j profile-build tb=yes
 setoption name TBPath value <โฟลเดอร์>      (หลายโฟลเดอร์คั่นด้วย ';')
 ```
 
+ฐานข้อมูลมี 2 รูปแบบ เอนจินแต่ละตัวอ่านได้รูปแบบเดียว เลือกตอนคอมไพล์ด้วย `tbformat`:
+
+| | `tbformat=v1` (ค่าเริ่มต้น) | `tbformat=v2` |
+|---|---|---|
+| ไฟล์ | `.mktbe` | `.mkts` / `.mktr` |
+| ชุด 5 ตัว | 10.5 GB, [`platoo-egtb-5men`](https://huggingface.co/datasets/kiraro33/platoo-egtb-5men) | 4.5 GB, [`platoo-egtb-5men-v2`](https://huggingface.co/datasets/kiraro33/platoo-egtb-5men-v2) |
+| ชุด 6 ตัว | ไม่มี | มี (ประมาณ 690 GB ขอได้ที่ [`platoo-egtb`](https://github.com/kiraro33/platoo-egtb)) |
+| "รุกจนใน N" เมื่อมีเบี้ย | ระยะถึงรุกจนจริง | ระยะถึงการเดินเบี้ยหรือกินหมากครั้งถัดไป |
+
+ผลแพ้ ชนะ เสมอของทั้งสองรูปแบบตรงกันทุกตำแหน่ง และความแรงในเกมเท่ากัน ถ้าตั้ง `TBPath` ไปที่โฟลเดอร์ของอีกรูปแบบ เอนจินจะบอกว่าต้องคอมไพล์ด้วย `tbformat` แบบไหน (เปลี่ยน `tbformat` ต้องสั่ง `make objclean` ก่อน)
+
+```
+make -j profile-build tb=yes tbformat=v2
+setoption name TBPath value <5 ตัว v2>;<6 ตัว>
+```
+
 เมื่อมีฐานข้อมูล เอนจินจะเล่นเผด็จหมากเหล่านี้ได้สมบูรณ์ รวมถึงในการค้นหาด้วย และถ้าตำแหน่งปัจจุบันอยู่ในฐานข้อมูลจะพิมพ์ `info string tb <win|draw|loss> <ply> ...` ถ้าไม่ตั้ง `TBPath` (ค่าเริ่มต้น) ผลทุกอย่างเหมือนเดิม และ `bench` ไม่เปลี่ยน
 
 <a id="nnue"></a>
